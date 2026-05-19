@@ -17,6 +17,13 @@ export type Route = {
   points: Point[]; // first = start, last = end, middle = intermediate control points
 };
 
+export type Annotation = {
+  id: string;
+  text: string;
+  x: number; // normalized 0..1
+  y: number;
+};
+
 export type Topo = {
   name: string;
   imageDataUrl: string | null;
@@ -25,6 +32,7 @@ export type Topo = {
   startNumber: number;
   showBanner: boolean;
   routes: Route[];
+  annotations: Annotation[];
 };
 
 export const emptyTopo = (): Topo => ({
@@ -35,4 +43,5 @@ export const emptyTopo = (): Topo => ({
   startNumber: 1,
   showBanner: true,
   routes: [],
+  annotations: [],
 });

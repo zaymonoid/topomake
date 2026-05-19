@@ -1,9 +1,8 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
 import { topoAtom, undoAtom, redoAtom } from "../state/atoms";
-import { canRedoAtom, canUndoAtom, exportableAtom } from "../state/computed";
-import { setImageAtom, setShowBannerAtom, setStartNumberAtom, setTopoNameAtom } from "../state/actions";
-import { downloadBlob, exportTopoPng } from "../util/export";
+import { canRedoAtom, canUndoAtom } from "../state/computed";
+import { setImageAtom, setTopoNameAtom } from "../state/actions";
 
 function readImageFile(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -24,13 +23,10 @@ export function TopBar() {
   const topo = useAtomValue(topoAtom);
   const canUndo = useAtomValue(canUndoAtom);
   const canRedo = useAtomValue(canRedoAtom);
-  const exportable = useAtomValue(exportableAtom);
   const undo = useSetAtom(undoAtom);
   const redo = useSetAtom(redoAtom);
   const setImage = useSetAtom(setImageAtom);
   const setName = useSetAtom(setTopoNameAtom);
-  const setStartNumber = useSetAtom(setStartNumberAtom);
-  const setShowBanner = useSetAtom(setShowBannerAtom);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -49,48 +45,62 @@ export function TopBar() {
     }
   };
 
-  const onExport = async () => {
-    try {
-      const blob = await exportTopoPng(topo);
-      const safe = (topo.name || "topo").replace(/[^a-z0-9-_]+/gi, "_");
-      downloadBlob(blob, `${safe}.png`);
-    } catch (err) {
-      alert("Export failed: " + (err as Error).message);
-    }
-  };
-
   return (
-    <div className="topbar">
-      <input
-        className="name-input"
-        type="text"
-        value={topo.name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Topo name"
-      />
-      <label>
-        Start #
+    <header className="topbar">
+      <div className="brand">
+        <div className="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 18 Q8 6 12 10 T 21 6" />
+            <path d="M3 14 Q8 4 12 7 T 21 3" opacity="0.5" />
+          </svg>
+        </div>
+        <div className="name">topomaker</div>
+      </div>
+
+      <div className="sep" />
+
+      <div className="crag-input-wrap">
+        <span className="label">CRAG</span>
         <input
-          type="number"
-          value={topo.startNumber}
-          style={{ width: 60 }}
-          onChange={(e) => {
-            const n = parseInt(e.target.value, 10);
-            if (!isNaN(n)) setStartNumber(n);
-          }}
+          className="crag-input"
+          value={topo.name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Untitled Topo"
         />
-      </label>
-      <button onClick={() => fileRef.current?.click()}>
-        {topo.imageDataUrl ? "Replace image" : "Upload image"}
+      </div>
+
+      <div className="sep" />
+
+      <button
+        className={`icon-btn ${canUndo ? "" : "disabled"}`}
+        onClick={() => canUndo && undo()}
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 8 L7 4 V6 H12 A2 2 0 0 1 14 8 V11 H12 V8 H7 V10 Z" />
+        </svg>
+        <span className="tip">Undo<kbd>⌘Z</kbd></span>
       </button>
-      <label style={{ cursor: "pointer" }}>
-        <input
-          type="checkbox"
-          checked={topo.showBanner}
-          onChange={(e) => setShowBanner(e.target.checked)}
-        />
-        Banner
-      </label>
+      <button
+        className={`icon-btn ${canRedo ? "" : "disabled"}`}
+        onClick={() => canRedo && redo()}
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M13 8 L9 4 V6 H4 A2 2 0 0 0 2 8 V11 H4 V8 H9 V10 Z" />
+        </svg>
+        <span className="tip">Redo<kbd>⌘⇧Z</kbd></span>
+      </button>
+
+      <div className="sep" />
+
+      <button className="icon-btn" onClick={() => fileRef.current?.click()}>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+          <rect x="2" y="3" width="12" height="9" rx="1" />
+          <circle cx="6" cy="7" r="1.4" />
+          <path d="M2 11 L6 7.5 L10 10 L14 6" />
+        </svg>
+        <span className="tip">{topo.imageDataUrl ? "Replace image" : "Upload image"}</span>
+      </button>
+
       <input
         ref={fileRef}
         type="file"
@@ -98,12 +108,8 @@ export function TopBar() {
         style={{ display: "none" }}
         onChange={onFile}
       />
+
       <div className="spacer" />
-      <button disabled={!canUndo} onClick={() => undo()} title="Undo (⌘Z)">Undo</button>
-      <button disabled={!canRedo} onClick={() => redo()} title="Redo (⇧⌘Z)">Redo</button>
-      <button className="primary" disabled={!exportable} onClick={onExport}>
-        Export PNG
-      </button>
-    </div>
+    </header>
   );
 }

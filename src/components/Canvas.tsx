@@ -1,11 +1,18 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { topoAtom } from "../state/atoms";
-import { bannerVisibleAtom, canvasCursorAtom, drawingRouteIdAtom, routesAtom } from "../state/computed";
-import { appendPointAtom } from "../state/actions";
+import { topoAtom, currentToolAtom } from "../state/atoms";
+import {
+  annotationsAtom,
+  bannerVisibleAtom,
+  canvasCursorAtom,
+  drawingRouteIdAtom,
+  routesAtom,
+} from "../state/computed";
+import { appendPointAtom, createAnnotationAtom } from "../state/actions";
 import { Point } from "../state/types";
 import { RouteShape } from "./RouteShape";
-import { ModeBar } from "./ModeBar";
+import { CanvasHud } from "./CanvasHud";
+import { AnnotationPin } from "./AnnotationPin";
 
 function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, h: number): Point {
   const rect = svg.getBoundingClientRect();
@@ -25,71 +32,100 @@ function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, 
 export function Canvas() {
   const topo = useAtomValue(topoAtom);
   const routes = useAtomValue(routesAtom);
+  const annotations = useAtomValue(annotationsAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
   const cursor = useAtomValue(canvasCursorAtom);
   const showBanner = useAtomValue(bannerVisibleAtom);
+  const tool = useAtomValue(currentToolAtom);
   const appendPoint = useSetAtom(appendPointAtom);
+  const createAnnotation = useSetAtom(createAnnotationAtom);
+  const setTool = useSetAtom(currentToolAtom);
   const svgRef = useRef<SVGSVGElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   if (!topo.imageDataUrl) {
     return (
-      <div className="canvas-wrap">
-        <div className="canvas-empty">
-          <p>No image loaded.</p>
-          <p style={{ fontSize: 12 }}>Upload one from the top bar to begin.</p>
+      <main className="canvas">
+        <div className="canvas-inner">
+          <div className="canvas-empty">
+            <p>No image loaded.</p>
+            <p className="hint">Upload one from the top bar to begin.</p>
+          </div>
         </div>
-        <ModeBar />
-      </div>
+      </main>
     );
   }
 
   const onCanvasClick = (e: React.MouseEvent) => {
     if (!svgRef.current) return;
-    if (!drawingId) return; // selection only changes via Esc / clicking a route
-    appendPoint(clientToNormalized(e, svgRef.current, topo.imageWidth, topo.imageHeight));
+    const np = clientToNormalized(e, svgRef.current, topo.imageWidth, topo.imageHeight);
+    if (drawingId) {
+      appendPoint(np);
+      return;
+    }
+    if (tool === "annotate") {
+      createAnnotation({ x: np.x, y: np.y });
+      setTool("select");
+    }
   };
 
-  return (
-    <div className="canvas-wrap">
-      <div className="canvas-stage" style={{ aspectRatio: `${topo.imageWidth} / ${topo.imageHeight}` }}>
-        <img src={topo.imageDataUrl} alt="" draggable={false} />
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${topo.imageWidth} ${topo.imageHeight}`}
-          preserveAspectRatio="xMidYMid meet"
-          style={{ cursor }}
-          onClick={onCanvasClick}
-        >
-          {showBanner && (
-            <g>
-              <rect x={topo.imageWidth * 0.02} y={topo.imageHeight * 0.02} width={topo.imageWidth * 0.3} height={topo.imageHeight * 0.06} fill="#1e3a8a" />
-              <text
-                x={topo.imageWidth * 0.035}
-                y={topo.imageHeight * 0.05}
-                fontSize={topo.imageHeight * 0.035}
-                fill="#fff"
-                fontWeight="800"
-                dominantBaseline="central"
-                letterSpacing={topo.imageHeight * 0.001}
-                style={{ userSelect: "none" }}
-              >
-                {topo.name.toUpperCase()}
-              </text>
-            </g>
-          )}
+  const annotateCursor = tool === "annotate" && !drawingId ? "crosshair" : cursor;
 
-          {routes.map((route) => (
-            <RouteShape
-              key={route.id}
-              route={route}
-              imageWidth={topo.imageWidth}
-              imageHeight={topo.imageHeight}
-              svgRef={svgRef}
-            />
+  return (
+    <main className="canvas">
+      <div className="canvas-inner">
+        <div ref={stageRef} className="stage">
+          <img className="photo" src={topo.imageDataUrl} alt="" draggable={false} />
+          <svg
+            ref={svgRef}
+            className="overlay-svg"
+            viewBox={`0 0 ${topo.imageWidth} ${topo.imageHeight}`}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ cursor: annotateCursor }}
+            onClick={onCanvasClick}
+          >
+            {showBanner && (
+              <g>
+                <rect
+                  x={topo.imageWidth * 0.02}
+                  y={topo.imageHeight * 0.02}
+                  width={topo.imageWidth * 0.3}
+                  height={topo.imageHeight * 0.06}
+                  fill="#1e3a8a"
+                />
+                <text
+                  x={topo.imageWidth * 0.035}
+                  y={topo.imageHeight * 0.05}
+                  fontSize={topo.imageHeight * 0.035}
+                  fill="#fff"
+                  fontWeight="800"
+                  dominantBaseline="central"
+                  letterSpacing={topo.imageHeight * 0.001}
+                  style={{ userSelect: "none" }}
+                >
+                  {topo.name.toUpperCase()}
+                </text>
+              </g>
+            )}
+
+            {routes.map((route) => (
+              <RouteShape
+                key={route.id}
+                route={route}
+                imageWidth={topo.imageWidth}
+                imageHeight={topo.imageHeight}
+                svgRef={svgRef}
+              />
+            ))}
+          </svg>
+
+          {annotations.map((a) => (
+            <AnnotationPin key={a.id} annotation={a} stageRef={stageRef} />
           ))}
-        </svg>
+
+          <CanvasHud />
+        </div>
       </div>
-      <ModeBar />
-    </div>
+    </main>
   );
 }

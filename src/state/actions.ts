@@ -1,6 +1,13 @@
 import { atom } from "jotai";
-import { topoAtom, editorModeAtom, commitAtom, snapshotHistoryAtom } from "./atoms";
-import { Point, Route, RouteColor, Topo } from "./types";
+import {
+  topoAtom,
+  editorModeAtom,
+  commitAtom,
+  snapshotHistoryAtom,
+  selectedAnnotationIdAtom,
+  currentToolAtom,
+} from "./atoms";
+import { Annotation, Point, Route, RouteColor, Topo } from "./types";
 import { nextRouteNumberAtom } from "./computed";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -104,6 +111,7 @@ export const deselectAtom = atom(null, (_get, set) => {
 export const finishDrawingAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "drawing") return;
+  set(currentToolAtom, "select");
   // If the route ended up with no points, drop it.
   const route = get(topoAtom).routes.find((r) => r.id === m.routeId);
   if (route && route.points.length === 0) {
@@ -116,6 +124,7 @@ export const finishDrawingAtom = atom(null, (get, set) => {
 export const cancelDrawingAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "drawing") return;
+  set(currentToolAtom, "select");
   set(deleteRouteAtom, m.routeId);
 });
 
@@ -184,3 +193,54 @@ export const deletePointAtom = atom(
     set(commitAtom, patchRoute(topo, payload.routeId, { points }));
   },
 );
+
+// === Annotations ===
+
+const patchAnnotation = (topo: Topo, id: string, patch: Partial<Annotation>): Topo => ({
+  ...topo,
+  annotations: topo.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+});
+
+export const createAnnotationAtom = atom(null, (get, set, payload: { x: number; y: number; text?: string }) => {
+  const topo = get(topoAtom);
+  const id = uid();
+  const annotation: Annotation = {
+    id,
+    text: payload.text ?? "",
+    x: payload.x,
+    y: payload.y,
+  };
+  set(commitAtom, { ...topo, annotations: [...topo.annotations, annotation] });
+  set(selectedAnnotationIdAtom, id);
+});
+
+export const setAnnotationTextAtom = atom(
+  null,
+  (get, set, payload: { id: string; text: string }) => {
+    set(commitAtom, patchAnnotation(get(topoAtom), payload.id, { text: payload.text }));
+  },
+);
+
+// Live position update used during drag — does NOT commit history (snapshot is taken at drag start).
+export const setAnnotationPosAtom = atom(
+  null,
+  (get, set, payload: { id: string; x: number; y: number }) => {
+    const topo = get(topoAtom);
+    set(topoAtom, {
+      ...topo,
+      annotations: topo.annotations.map((a) =>
+        a.id === payload.id ? { ...a, x: payload.x, y: payload.y } : a,
+      ),
+    });
+  },
+);
+
+export const deleteAnnotationAtom = atom(null, (get, set, id: string) => {
+  const topo = get(topoAtom);
+  set(commitAtom, { ...topo, annotations: topo.annotations.filter((a) => a.id !== id) });
+  if (get(selectedAnnotationIdAtom) === id) set(selectedAnnotationIdAtom, null);
+});
+
+export const beginAnnotationDragAtom = atom(null, (_get, set) => {
+  set(snapshotHistoryAtom);
+});

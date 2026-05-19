@@ -4,10 +4,14 @@ import { EditorMode } from "./mode";
 
 type History = { past: Topo[]; future: Topo[] };
 
+export type Tool = "select" | "draw" | "annotate";
+
 // === Primitives — the only writable atoms ===
 export const topoAtom = atom<Topo>(emptyTopo());
 export const editorModeAtom = atom<EditorMode>({ kind: "empty" });
 export const historyAtom = atom<History>({ past: [], future: [] });
+export const currentToolAtom = atom<Tool>("select");
+export const selectedAnnotationIdAtom = atom<string | null>(null);
 
 // === History plumbing (write-only) ===
 

@@ -1,6 +1,8 @@
 import { TopBar } from "./components/TopBar";
+import { LeftRail } from "./components/LeftRail";
 import { Canvas } from "./components/Canvas";
 import { SidePanel } from "./components/SidePanel";
+import { StatusBar } from "./components/StatusBar";
 import { KeyboardRoot } from "./input/KeyboardRoot";
 
 export function App() {
@@ -8,10 +10,10 @@ export function App() {
     <div className="app">
       <KeyboardRoot />
       <TopBar />
-      <div className="main">
-        <Canvas />
-        <SidePanel />
-      </div>
+      <LeftRail />
+      <Canvas />
+      <SidePanel />
+      <StatusBar />
     </div>
   );
 }

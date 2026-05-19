@@ -37,22 +37,29 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const isSelected = selectedId === route.id;
   const isDrawing = drawingId === route.id;
   const startColor = PALETTE[route.color];
-  const numColor = route.color === "white" ? "#000" : "#fff";
+  const numColor = route.color === "white" || route.color === "yellow" ? "#000" : "#fff";
 
   const dragPointerIdRef = useRef<number | null>(null);
 
-  // Pixel-space points used for circles and hit-testing. The path string itself is the
-  // result of routePathAtomFamily — pre-computed and only invalidates when this route changes.
   const pixelPoints = route.points.map((p) => ({ x: p.x * imageWidth, y: p.y * imageHeight }));
   const start = pixelPoints[0];
   const end = pixelPoints[pixelPoints.length - 1];
 
   const baseSize = Math.min(imageWidth, imageHeight);
-  const lineWidth = baseSize * 0.002;
+  const lineWidth = baseSize * 0.0035;
+  const glowWidth = baseSize * 0.018;
+  const selectedLineWidth = baseSize * 0.0045;
   const startR = baseSize * 0.022;
   const startFontSize = baseSize * 0.025;
   const endR = baseSize * 0.010;
-  const handleR = baseSize * 0.012;
+  const handleR = baseSize * 0.013;
+  const handleMidR = baseSize * 0.011;
+  const handleStroke = baseSize * 0.003;
+  const labelRingR = baseSize * 0.04;
+  const labelRingStroke = baseSize * 0.004;
+  const labelRingDash = baseSize * 0.007;
+  const selectedDash = baseSize * 0.012;
+  const selectedGap = baseSize * 0.008;
   const hitWidth = baseSize * 0.025;
 
   const onLineClick = (e: React.MouseEvent) => {
@@ -106,7 +113,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
 
   return (
     <g>
-      {/* Wide invisible hit target on the line */}
+      {/* Wide invisible hit target */}
       {pathD && (
         <path
           d={pathD}
@@ -117,6 +124,17 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
           onClick={onLineClick}
         />
       )}
+
+      {/* Selection glow underneath */}
+      {isSelected && pathD && (
+        <path
+          className="selected-glow"
+          d={pathD}
+          strokeWidth={glowWidth}
+        />
+      )}
+
+      {/* Visible white line */}
       {pathD && (
         <path
           d={pathD}
@@ -129,6 +147,17 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         />
       )}
 
+      {/* Crisp dashed selection line on top */}
+      {isSelected && pathD && (
+        <path
+          className="selected-line"
+          d={pathD}
+          strokeWidth={selectedLineWidth}
+          strokeDasharray={`${selectedDash} ${selectedGap}`}
+        />
+      )}
+
+      {/* End marker */}
       {end && pixelPoints.length >= 2 && (
         <circle
           cx={end.x}
@@ -139,6 +168,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         />
       )}
 
+      {/* Start chip with number */}
       {start && (
         <g style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); selectRoute(route.id); }}>
           <circle cx={start.x} cy={start.y} r={startR} fill={startColor} />
@@ -159,25 +189,42 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         </g>
       )}
 
+      {/* Dashed label ring around start chip when selected */}
+      {isSelected && start && (
+        <circle
+          className="label-ring"
+          cx={start.x}
+          cy={start.y}
+          r={labelRingR}
+          strokeWidth={labelRingStroke}
+          strokeDasharray={`${labelRingDash} ${labelRingDash}`}
+          pointerEvents="none"
+        />
+      )}
+
+      {/* Handles */}
       {isSelected &&
-        pixelPoints.map((p, i) => (
-          <circle
-            key={i}
-            cx={p.x}
-            cy={p.y}
-            r={handleR}
-            fill="#fff"
-            stroke="#000"
-            strokeWidth={lineWidth * 0.5}
-            opacity={0.85}
-            style={{ cursor: "grab" }}
-            onPointerDown={(e) => onHandleDown(e, i)}
-            onPointerMove={onHandleMove}
-            onPointerUp={onHandleUp}
-            onPointerCancel={onHandleUp}
-            onContextMenu={(e) => onHandleContextMenu(e, i)}
-          />
-        ))}
+        pixelPoints.map((p, i) => {
+          const isStart = i === 0;
+          const isEnd = i === pixelPoints.length - 1;
+          const cls = isStart ? "handle-start" : isEnd ? "handle-end" : "handle-mid";
+          const r = isStart || isEnd ? handleR : handleMidR;
+          return (
+            <circle
+              key={i}
+              className={cls}
+              cx={p.x}
+              cy={p.y}
+              r={r}
+              strokeWidth={handleStroke}
+              onPointerDown={(e) => onHandleDown(e, i)}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+              onContextMenu={(e) => onHandleContextMenu(e, i)}
+            />
+          );
+        })}
     </g>
   );
 }

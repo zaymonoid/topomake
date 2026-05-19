@@ -9,6 +9,16 @@ import { catmullRomPath } from "../util/spline";
 
 export const routesAtom = atom((get) => get(topoAtom).routes);
 
+export const annotationsAtom = atom((get) => get(topoAtom).annotations);
+export const annotationCountAtom = atom((get) => get(annotationsAtom).length);
+
+export const routeNumberRangeAtom = atom<{ min: number; max: number } | null>((get) => {
+  const routes = get(routesAtom);
+  if (routes.length === 0) return null;
+  const nums = routes.map((r) => r.number);
+  return { min: Math.min(...nums), max: Math.max(...nums) };
+});
+
 export const imageLoadedAtom = atom(
   (get) =>
     get(topoAtom).imageDataUrl !== null &&
