@@ -1,8 +1,9 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { selectedRouteIdAtom, drawingRouteIdAtom, routePathAtomFamily } from "../state/computed";
+import { selectedRouteIdAtom, drawingRouteIdAtom, dragOverrideForRouteAtomFamily } from "../state/computed";
 import { beginDragAtom, setDragPointAtom, endDragAtom, insertPointAtom, deletePointAtom, selectRouteAtom } from "../state/actions";
 import { PALETTE, Point, Route } from "../state/types";
+import { catmullRomPath } from "../util/spline";
 
 type Props = {
   route: Route;
@@ -11,8 +12,7 @@ type Props = {
   svgRef: React.RefObject<SVGSVGElement>;
 };
 
-function clientToNormalized(e: { clientX: number; clientY: number }, svg: SVGSVGElement, w: number, h: number): Point {
-  const rect = svg.getBoundingClientRect();
+function clientToNormalized(e: { clientX: number; clientY: number }, rect: DOMRect, w: number, h: number): Point {
   const scale = Math.min(rect.width / w, rect.height / h);
   const renderedW = w * scale;
   const renderedH = h * scale;
@@ -26,7 +26,7 @@ function clientToNormalized(e: { clientX: number; clientY: number }, svg: SVGSVG
 export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const selectedId = useAtomValue(selectedRouteIdAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
-  const pathD = useAtomValue(routePathAtomFamily(route.id));
+  const dragOverride = useAtomValue(dragOverrideForRouteAtomFamily(route.id));
   const selectRoute = useSetAtom(selectRouteAtom);
   const beginDrag = useSetAtom(beginDragAtom);
   const setDragPoint = useSetAtom(setDragPointAtom);
@@ -40,8 +40,14 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const numColor = route.color === "white" || route.color === "yellow" ? "#000" : "#fff";
 
   const dragPointerIdRef = useRef<number | null>(null);
+  // Cached on pointerdown so per-frame moves don't force a layout flush.
+  const dragRectRef = useRef<DOMRect | null>(null);
 
-  const pixelPoints = route.points.map((p) => ({ x: p.x * imageWidth, y: p.y * imageHeight }));
+  const pixelPoints = route.points.map((p, i) => {
+    const src = dragOverride && i === dragOverride.pointIndex ? dragOverride.point : p;
+    return { x: src.x * imageWidth, y: src.y * imageHeight };
+  });
+  const pathD = catmullRomPath(pixelPoints);
   const start = pixelPoints[0];
   const end = pixelPoints[pixelPoints.length - 1];
 
@@ -69,7 +75,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
       return;
     }
     if (isDrawing || !svgRef.current) return;
-    const np = clientToNormalized(e, svgRef.current, imageWidth, imageHeight);
+    const np = clientToNormalized(e, svgRef.current.getBoundingClientRect(), imageWidth, imageHeight);
     const clickPx = { x: np.x * imageWidth, y: np.y * imageHeight };
     let bestIdx = 1;
     let bestDist = Infinity;
@@ -86,20 +92,23 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const onHandleDown = (e: React.PointerEvent, index: number) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+    if (!svgRef.current) return;
     (e.target as Element).setPointerCapture(e.pointerId);
     dragPointerIdRef.current = e.pointerId;
+    dragRectRef.current = svgRef.current.getBoundingClientRect();
     beginDrag({ routeId: route.id, pointIndex: index });
   };
 
   const onHandleMove = (e: React.PointerEvent) => {
     if (dragPointerIdRef.current !== e.pointerId) return;
-    if (!svgRef.current) return;
-    setDragPoint(clientToNormalized(e, svgRef.current, imageWidth, imageHeight));
+    if (!dragRectRef.current) return;
+    setDragPoint(clientToNormalized(e, dragRectRef.current, imageWidth, imageHeight));
   };
 
   const onHandleUp = (e: React.PointerEvent) => {
     if (dragPointerIdRef.current !== e.pointerId) return;
     dragPointerIdRef.current = null;
+    dragRectRef.current = null;
     endDrag();
   };
 

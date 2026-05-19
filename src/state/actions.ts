@@ -6,6 +6,7 @@ import {
   snapshotHistoryAtom,
   selectedAnnotationIdAtom,
   currentToolAtom,
+  dragOverrideAtom,
 } from "./atoms";
 import { Annotation, Point, Route, RouteColor, Topo } from "./types";
 import { nextRouteNumberAtom } from "./computed";
@@ -145,27 +146,35 @@ export const beginDragAtom = atom(
   null,
   (_get, set, payload: { routeId: string; pointIndex: number }) => {
     set(snapshotHistoryAtom);
+    set(dragOverrideAtom, null);
     set(editorModeAtom, { kind: "dragging", routeId: payload.routeId, pointIndex: payload.pointIndex });
   },
 );
 
+// Per-frame updates write only to dragOverrideAtom, keeping topoAtom stable so
+// the rest of the app doesn't re-render on every pointermove.
 export const setDragPointAtom = atom(null, (get, set, point: Point) => {
   const m = get(editorModeAtom);
   if (m.kind !== "dragging") return;
-  const topo = get(topoAtom);
-  set(topoAtom, {
-    ...topo,
-    routes: topo.routes.map((r) =>
-      r.id === m.routeId
-        ? { ...r, points: r.points.map((p, i) => (i === m.pointIndex ? point : p)) }
-        : r,
-    ),
-  });
+  set(dragOverrideAtom, { routeId: m.routeId, pointIndex: m.pointIndex, point });
 });
 
 export const endDragAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "dragging") return;
+  const override = get(dragOverrideAtom);
+  if (override) {
+    const topo = get(topoAtom);
+    set(topoAtom, {
+      ...topo,
+      routes: topo.routes.map((r) =>
+        r.id === override.routeId
+          ? { ...r, points: r.points.map((p, i) => (i === override.pointIndex ? override.point : p)) }
+          : r,
+      ),
+    });
+    set(dragOverrideAtom, null);
+  }
   set(editorModeAtom, { kind: "selected", routeId: m.routeId });
 });
 

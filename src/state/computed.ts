@@ -1,9 +1,8 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
-import { topoAtom, editorModeAtom, historyAtom } from "./atoms";
+import { topoAtom, editorModeAtom, historyAtom, dragOverrideAtom, DragOverride } from "./atoms";
 import { Route } from "./types";
 import { ShortcutsScope } from "./mode";
-import { catmullRomPath } from "../util/spline";
 
 // === From topoAtom ===
 
@@ -119,14 +118,11 @@ export const routeAtomFamily = atomFamily((id: string) =>
   atom<Route | null>((get) => get(routesAtom).find((r) => r.id === id) ?? null),
 );
 
-export const routePathAtomFamily = atomFamily((id: string) =>
-  atom((get) => {
-    const route = get(routeAtomFamily(id));
-    if (!route) return "";
-    const topo = get(topoAtom);
-    if (!topo.imageWidth || !topo.imageHeight) return "";
-    return catmullRomPath(
-      route.points.map((p) => ({ x: p.x * topo.imageWidth, y: p.y * topo.imageHeight })),
-    );
+// Returns the drag override only if it targets this route, otherwise null.
+// Per-route slicing means non-dragged routes don't re-render when the override updates.
+export const dragOverrideForRouteAtomFamily = atomFamily((id: string) =>
+  atom<DragOverride>((get) => {
+    const o = get(dragOverrideAtom);
+    return o && o.routeId === id ? o : null;
   }),
 );

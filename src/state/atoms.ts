@@ -1,10 +1,12 @@
 import { atom } from "jotai";
-import { emptyTopo, Topo } from "./types";
+import { emptyTopo, Point, Topo } from "./types";
 import { EditorMode } from "./mode";
 
 type History = { past: Topo[]; future: Topo[] };
 
 export type Tool = "select" | "draw" | "annotate";
+
+export type DragOverride = { routeId: string; pointIndex: number; point: Point } | null;
 
 // === Primitives — the only writable atoms ===
 export const topoAtom = atom<Topo>(emptyTopo());
@@ -12,6 +14,9 @@ export const editorModeAtom = atom<EditorMode>({ kind: "empty" });
 export const historyAtom = atom<History>({ past: [], future: [] });
 export const currentToolAtom = atom<Tool>("select");
 export const selectedAnnotationIdAtom = atom<string | null>(null);
+// Live position of the point being dragged. Stays null except during a drag.
+// Kept out of topoAtom so per-frame moves don't trigger app-wide re-renders.
+export const dragOverrideAtom = atom<DragOverride>(null);
 
 // === History plumbing (write-only) ===
 
