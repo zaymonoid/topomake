@@ -1,12 +1,6 @@
 import { PALETTE, Topo } from "../state/types";
 import { catmullRomPath } from "./spline";
 
-function escapeXml(s: string): string {
-  return s.replace(/[<>&'"]/g, (c) =>
-    c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : c === "'" ? "&apos;" : "&quot;",
-  );
-}
-
 export function buildSvgString(topo: Topo): string {
   if (!topo.imageDataUrl) return "";
   const W = topo.imageWidth;
@@ -43,21 +37,9 @@ export function buildSvgString(topo: Topo): string {
     })
     .join("");
 
-  let banner = "";
-  if (topo.showBanner) {
-    const bannerW = W * 0.3;
-    const bannerH = H * 0.06;
-    const bannerX = W * 0.02;
-    const bannerY = H * 0.02;
-    banner =
-      `<rect x="${bannerX}" y="${bannerY}" width="${bannerW}" height="${bannerH}" fill="#1e3a8a"/>` +
-      `<text x="${bannerX + W * 0.015}" y="${bannerY + bannerH / 2}" font-size="${H * 0.035}" fill="#fff" font-weight="800" dominant-baseline="central" font-family="-apple-system, system-ui, sans-serif">${escapeXml(topo.name.toUpperCase())}</text>`;
-  }
-
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">` +
     `<image href="${topo.imageDataUrl}" width="${W}" height="${H}"/>` +
-    banner +
     routes +
     `</svg>`
   );

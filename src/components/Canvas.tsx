@@ -3,7 +3,6 @@ import { useRef } from "react";
 import { topoAtom, currentToolAtom } from "../state/atoms";
 import {
   annotationsAtom,
-  bannerVisibleAtom,
   canvasCursorAtom,
   drawingRouteIdAtom,
   routesAtom,
@@ -11,7 +10,6 @@ import {
 import { appendPointAtom, createAnnotationAtom } from "../state/actions";
 import { Point } from "../state/types";
 import { RouteShape } from "./RouteShape";
-import { CanvasHud } from "./CanvasHud";
 import { AnnotationPin } from "./AnnotationPin";
 
 function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, h: number): Point {
@@ -35,7 +33,6 @@ export function Canvas() {
   const annotations = useAtomValue(annotationsAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
   const cursor = useAtomValue(canvasCursorAtom);
-  const showBanner = useAtomValue(bannerVisibleAtom);
   const tool = useAtomValue(currentToolAtom);
   const appendPoint = useSetAtom(appendPointAtom);
   const createAnnotation = useSetAtom(createAnnotationAtom);
@@ -84,30 +81,6 @@ export function Canvas() {
             style={{ cursor: annotateCursor }}
             onClick={onCanvasClick}
           >
-            {showBanner && (
-              <g>
-                <rect
-                  x={topo.imageWidth * 0.02}
-                  y={topo.imageHeight * 0.02}
-                  width={topo.imageWidth * 0.3}
-                  height={topo.imageHeight * 0.06}
-                  fill="#1e3a8a"
-                />
-                <text
-                  x={topo.imageWidth * 0.035}
-                  y={topo.imageHeight * 0.05}
-                  fontSize={topo.imageHeight * 0.035}
-                  fill="#fff"
-                  fontWeight="800"
-                  dominantBaseline="central"
-                  letterSpacing={topo.imageHeight * 0.001}
-                  style={{ userSelect: "none" }}
-                >
-                  {topo.name.toUpperCase()}
-                </text>
-              </g>
-            )}
-
             {routes.map((route) => (
               <RouteShape
                 key={route.id}
@@ -122,8 +95,6 @@ export function Canvas() {
           {annotations.map((a) => (
             <AnnotationPin key={a.id} annotation={a} stageRef={stageRef} />
           ))}
-
-          <CanvasHud />
         </div>
       </div>
     </main>

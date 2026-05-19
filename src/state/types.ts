@@ -30,7 +30,6 @@ export type Topo = {
   imageWidth: number;
   imageHeight: number;
   startNumber: number;
-  showBanner: boolean;
   routes: Route[];
   annotations: Annotation[];
 };
@@ -41,7 +40,6 @@ export const emptyTopo = (): Topo => ({
   imageWidth: 0,
   imageHeight: 0,
   startNumber: 1,
-  showBanner: true,
   routes: [],
   annotations: [],
 });

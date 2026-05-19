@@ -38,10 +38,6 @@ export const setTopoNameAtom = atom(null, (get, set, name: string) => {
   set(commitAtom, { ...get(topoAtom), name });
 });
 
-export const setShowBannerAtom = atom(null, (get, set, showBanner: boolean) => {
-  set(commitAtom, { ...get(topoAtom), showBanner });
-});
-
 export const setStartNumberAtom = atom(null, (get, set, startNumber: number) => {
   const topo = get(topoAtom);
   if (topo.routes.length === 0) {

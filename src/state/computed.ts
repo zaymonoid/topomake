@@ -34,10 +34,6 @@ export const nextRouteNumberAtom = atom((get) => {
   return Math.max(...topo.routes.map((r) => r.number)) + 1;
 });
 
-export const bannerVisibleAtom = atom(
-  (get) => get(topoAtom).showBanner && get(imageLoadedAtom),
-);
-
 export const exportableAtom = atom((get) => get(imageLoadedAtom));
 
 // === From editorModeAtom ===

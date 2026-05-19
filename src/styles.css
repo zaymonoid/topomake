@@ -269,34 +269,6 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
   height: 100%;
 }
 
-/* canvas HUD */
-.canvas-hud {
-  position: absolute; left: 0; right: 0;
-  pointer-events: none;
-}
-.canvas-hud.top {
-  top: 16px;
-  display: flex; justify-content: center;
-  gap: 8px;
-}
-.hud-chip {
-  pointer-events: auto;
-  display: inline-flex; align-items: center; gap: 8px;
-  background: rgba(14,10,6,0.78);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,235,200,0.10);
-  color: var(--fg-0);
-  padding: 6px 12px;
-  border-radius: 99px;
-  font-size: 12px;
-  font-weight: 500;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.45);
-  white-space: nowrap;
-}
-.hud-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 8px var(--primary); }
-.hud-chip .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-1); }
-
 /* floating annotation pin */
 .ann-pin {
   position: absolute;
