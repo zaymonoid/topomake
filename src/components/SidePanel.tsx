@@ -1,9 +1,10 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { topoAtom, selectedRouteIdAtom, drawingRouteIdAtom } from "../state/atoms";
+import { useAtomValue, useSetAtom } from "jotai";
+import { canAddRouteAtom, currentRouteAtom, drawingRouteIdAtom, routesAtom, selectedRouteIdAtom } from "../state/computed";
 import {
   createRouteAtom,
   deleteRouteAtom,
   finishDrawingAtom,
+  selectRouteAtom,
   setRouteColorAtom,
   setRouteNameAtom,
   setRouteNumberAtom,
@@ -13,24 +14,24 @@ import { PALETTE, RouteColor } from "../state/types";
 const COLORS: RouteColor[] = ["blue", "white", "red", "yellow"];
 
 export function SidePanel() {
-  const topo = useAtomValue(topoAtom);
-  const [selectedId, setSelectedId] = useAtom(selectedRouteIdAtom);
+  const routes = useAtomValue(routesAtom);
+  const selectedId = useAtomValue(selectedRouteIdAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
+  const selected = useAtomValue(currentRouteAtom);
+  const canAdd = useAtomValue(canAddRouteAtom);
   const createRoute = useSetAtom(createRouteAtom);
   const deleteRoute = useSetAtom(deleteRouteAtom);
+  const selectRoute = useSetAtom(selectRouteAtom);
   const setName = useSetAtom(setRouteNameAtom);
   const setNumber = useSetAtom(setRouteNumberAtom);
   const setColor = useSetAtom(setRouteColorAtom);
   const finishDrawing = useSetAtom(finishDrawingAtom);
 
-  const selected = topo.routes.find((r) => r.id === selectedId) ?? null;
-  const canCreate = topo.imageDataUrl !== null && !drawingId;
-
   return (
     <aside className="sidepanel">
       <div>
         <h3>Routes</h3>
-        <button className="primary" disabled={!canCreate} onClick={() => createRoute()}>
+        <button className="primary" disabled={!canAdd} onClick={() => createRoute()}>
           + Add route
         </button>
         {drawingId && (
@@ -41,14 +42,14 @@ export function SidePanel() {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {topo.routes.length === 0 && (
+        {routes.length === 0 && (
           <p style={{ color: "#666", fontSize: 12 }}>No routes yet.</p>
         )}
-        {topo.routes.map((r) => (
+        {routes.map((r) => (
           <div
             key={r.id}
             className={`route-row ${r.id === selectedId ? "selected" : ""}`}
-            onClick={() => setSelectedId(r.id)}
+            onClick={() => selectRoute(r.id)}
           >
             <span className="num" style={{ background: PALETTE[r.color], color: r.color === "white" || r.color === "yellow" ? "#000" : "#fff" }}>
               {r.number}
@@ -105,11 +106,6 @@ export function SidePanel() {
           <button onClick={() => deleteRoute(selected.id)} style={{ marginTop: 4 }}>
             Delete route
           </button>
-          <p style={{ fontSize: 11, color: "#888", margin: 0 }}>
-            {drawingId === selected.id
-              ? "Click on the image to place points. Press Enter or click 'Finish drawing' when done."
-              : "Drag handles to reshape. Click between handles to insert a point. Right-click a handle to delete it."}
-          </p>
         </div>
       )}
     </aside>

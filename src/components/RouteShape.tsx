@@ -1,14 +1,8 @@
-import { useAtom, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { selectedRouteIdAtom, drawingRouteIdAtom } from "../state/atoms";
-import {
-  beginInteractionAtom,
-  setPointNoCommitAtom,
-  insertPointAtom,
-  deletePointAtom,
-} from "../state/actions";
+import { selectedRouteIdAtom, drawingRouteIdAtom, routePathAtomFamily } from "../state/computed";
+import { beginDragAtom, setDragPointAtom, endDragAtom, insertPointAtom, deletePointAtom, selectRouteAtom } from "../state/actions";
 import { PALETTE, Point, Route } from "../state/types";
-import { catmullRomPath } from "../util/spline";
 
 type Props = {
   route: Route;
@@ -17,11 +11,8 @@ type Props = {
   svgRef: React.RefObject<SVGSVGElement>;
 };
 
-// Convert a pointer event to normalized [0,1] image coordinates using SVG viewBox math.
 function clientToNormalized(e: { clientX: number; clientY: number }, svg: SVGSVGElement, w: number, h: number): Point {
   const rect = svg.getBoundingClientRect();
-  // SVG viewBox is 0 0 w h with default preserveAspectRatio (xMidYMid meet).
-  // Compute the actual content rect inside the SVG (letterboxed).
   const scale = Math.min(rect.width / w, rect.height / h);
   const renderedW = w * scale;
   const renderedH = h * scale;
@@ -33,55 +24,50 @@ function clientToNormalized(e: { clientX: number; clientY: number }, svg: SVGSVG
 }
 
 export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
-  const [selectedId, setSelectedId] = useAtom(selectedRouteIdAtom);
-  const [drawingId] = useAtom(drawingRouteIdAtom);
-  const beginInteraction = useSetAtom(beginInteractionAtom);
-  const setPointNoCommit = useSetAtom(setPointNoCommitAtom);
+  const selectedId = useAtomValue(selectedRouteIdAtom);
+  const drawingId = useAtomValue(drawingRouteIdAtom);
+  const pathD = useAtomValue(routePathAtomFamily(route.id));
+  const selectRoute = useSetAtom(selectRouteAtom);
+  const beginDrag = useSetAtom(beginDragAtom);
+  const setDragPoint = useSetAtom(setDragPointAtom);
+  const endDrag = useSetAtom(endDragAtom);
   const insertPoint = useSetAtom(insertPointAtom);
   const deletePoint = useSetAtom(deletePointAtom);
 
   const isSelected = selectedId === route.id;
   const isDrawing = drawingId === route.id;
-  const color = PALETTE[route.color];
+  const startColor = PALETTE[route.color];
   const numColor = route.color === "white" ? "#000" : "#fff";
 
-  const dragRef = useRef<{ pointerId: number; index: number } | null>(null);
+  const dragPointerIdRef = useRef<number | null>(null);
 
-  // Convert normalized points to pixel-space points for path generation.
+  // Pixel-space points used for circles and hit-testing. The path string itself is the
+  // result of routePathAtomFamily — pre-computed and only invalidates when this route changes.
   const pixelPoints = route.points.map((p) => ({ x: p.x * imageWidth, y: p.y * imageHeight }));
-  const pathD = catmullRomPath(pixelPoints);
-
   const start = pixelPoints[0];
   const end = pixelPoints[pixelPoints.length - 1];
 
-  // Sizes scale with the image's smaller dimension so things look right at any image size.
   const baseSize = Math.min(imageWidth, imageHeight);
-  const lineWidth = baseSize * 0.004;
-  const haloWidth = lineWidth * 1.8;
+  const lineWidth = baseSize * 0.002;
   const startR = baseSize * 0.022;
   const startFontSize = baseSize * 0.025;
-  const endR = baseSize * 0.012;
+  const endR = baseSize * 0.010;
   const handleR = baseSize * 0.012;
   const hitWidth = baseSize * 0.025;
 
   const onLineClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!isSelected) {
-      setSelectedId(route.id);
+      selectRoute(route.id);
       return;
     }
-    // If selected and not drawing, insert a new point at the clicked position
-    // into the nearest segment.
     if (isDrawing || !svgRef.current) return;
     const np = clientToNormalized(e, svgRef.current, imageWidth, imageHeight);
     const clickPx = { x: np.x * imageWidth, y: np.y * imageHeight };
-    // Find nearest segment between consecutive points.
     let bestIdx = 1;
     let bestDist = Infinity;
     for (let i = 0; i < pixelPoints.length - 1; i++) {
-      const a = pixelPoints[i];
-      const b = pixelPoints[i + 1];
-      const d = pointSegmentDistance(clickPx, a, b);
+      const d = pointSegmentDistance(clickPx, pixelPoints[i], pixelPoints[i + 1]);
       if (d < bestDist) {
         bestDist = d;
         bestIdx = i + 1;
@@ -94,27 +80,24 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     e.stopPropagation();
     if (e.button !== 0) return;
     (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { pointerId: e.pointerId, index };
-    beginInteraction();
-    setSelectedId(route.id);
+    dragPointerIdRef.current = e.pointerId;
+    beginDrag({ routeId: route.id, pointIndex: index });
   };
 
   const onHandleMove = (e: React.PointerEvent) => {
-    if (!dragRef.current || dragRef.current.pointerId !== e.pointerId) return;
+    if (dragPointerIdRef.current !== e.pointerId) return;
     if (!svgRef.current) return;
-    const np = clientToNormalized(e, svgRef.current, imageWidth, imageHeight);
-    setPointNoCommit({ routeId: route.id, index: dragRef.current.index, point: np });
+    setDragPoint(clientToNormalized(e, svgRef.current, imageWidth, imageHeight));
   };
 
   const onHandleUp = (e: React.PointerEvent) => {
-    if (dragRef.current && dragRef.current.pointerId === e.pointerId) {
-      dragRef.current = null;
-    }
+    if (dragPointerIdRef.current !== e.pointerId) return;
+    dragPointerIdRef.current = null;
+    endDrag();
   };
 
   const onHandleContextMenu = (e: React.MouseEvent, index: number) => {
     if (isDrawing) return;
-    // Don't allow deleting the start or end while the route has only 2 points
     if (route.points.length <= 2) return;
     e.preventDefault();
     e.stopPropagation();
@@ -123,7 +106,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
 
   return (
     <g>
-      {/* Wider invisible hit target on the line */}
+      {/* Wide invisible hit target on the line */}
       {pathD && (
         <path
           d={pathD}
@@ -135,57 +118,30 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         />
       )}
       {pathD && (
-        <>
-          <path
-            d={pathD}
-            stroke="#fff"
-            strokeWidth={haloWidth}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            pointerEvents="none"
-          />
-          <path
-            d={pathD}
-            stroke={color}
-            strokeWidth={lineWidth}
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            pointerEvents="none"
-          />
-        </>
+        <path
+          d={pathD}
+          stroke="#fff"
+          strokeWidth={lineWidth}
+          fill="none"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+        />
       )}
 
-      {/* End cap (small hollow circle) */}
       {end && pixelPoints.length >= 2 && (
-        <>
-          <circle
-            cx={end.x}
-            cy={end.y}
-            r={endR}
-            fill="none"
-            stroke="#fff"
-            strokeWidth={haloWidth}
-            pointerEvents="none"
-          />
-          <circle
-            cx={end.x}
-            cy={end.y}
-            r={endR}
-            fill="none"
-            stroke={color}
-            strokeWidth={lineWidth}
-            pointerEvents="none"
-          />
-        </>
+        <circle
+          cx={end.x}
+          cy={end.y}
+          r={endR}
+          fill="#fff"
+          pointerEvents="none"
+        />
       )}
 
-      {/* Start circle with number — white halo behind, then colored fill, then number with stroke for legibility */}
       {start && (
-        <g style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setSelectedId(route.id); }}>
-          <circle cx={start.x} cy={start.y} r={startR + haloWidth / 2} fill="#fff" />
-          <circle cx={start.x} cy={start.y} r={startR} fill={color} />
+        <g style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); selectRoute(route.id); }}>
+          <circle cx={start.x} cy={start.y} r={startR} fill={startColor} />
           <text
             x={start.x}
             y={start.y}
@@ -194,6 +150,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
             textAnchor="middle"
             dominantBaseline="central"
             fontWeight="700"
+            fontFamily='"JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace'
             pointerEvents="none"
             style={{ userSelect: "none" }}
           >
@@ -202,7 +159,6 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         </g>
       )}
 
-      {/* Intermediate + endpoint handles (only when selected and not actively drawing this) */}
       {isSelected &&
         pixelPoints.map((p, i) => (
           <circle
@@ -233,7 +189,5 @@ function pointSegmentDistance(p: Point, a: Point, b: Point): number {
   if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
   let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
   t = Math.max(0, Math.min(1, t));
-  const cx = a.x + t * dx;
-  const cy = a.y + t * dy;
-  return Math.hypot(p.x - cx, p.y - cy);
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }

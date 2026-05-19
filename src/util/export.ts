@@ -12,15 +12,14 @@ export function buildSvgString(topo: Topo): string {
   const W = topo.imageWidth;
   const H = topo.imageHeight;
   const baseSize = Math.min(W, H);
-  const lineWidth = baseSize * 0.004;
-  const haloWidth = lineWidth * 1.8;
+  const lineWidth = baseSize * 0.002;
   const startR = baseSize * 0.022;
   const startFontSize = baseSize * 0.025;
-  const endR = baseSize * 0.012;
+  const endR = baseSize * 0.010;
 
   const routes = topo.routes
     .map((r) => {
-      const color = PALETTE[r.color];
+      const startColor = PALETTE[r.color];
       const px = r.points.map((p) => ({ x: p.x * W, y: p.y * H }));
       if (px.length === 0) return "";
       const path = catmullRomPath(px);
@@ -28,21 +27,17 @@ export function buildSvgString(topo: Topo): string {
       const end = px[px.length - 1];
       const numFill = r.color === "white" ? "#000" : "#fff";
       const parts: string[] = [];
-      // White halo, then colored stroke.
       parts.push(
-        `<path d="${path}" stroke="#fff" stroke-width="${haloWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
-        `<path d="${path}" stroke="${color}" stroke-width="${lineWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
+        `<path d="${path}" stroke="#fff" stroke-width="${lineWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
       );
       if (px.length >= 2) {
         parts.push(
-          `<circle cx="${end.x}" cy="${end.y}" r="${endR}" fill="none" stroke="#fff" stroke-width="${haloWidth}"/>`,
-          `<circle cx="${end.x}" cy="${end.y}" r="${endR}" fill="none" stroke="${color}" stroke-width="${lineWidth}"/>`,
+          `<circle cx="${end.x}" cy="${end.y}" r="${endR}" fill="#fff"/>`,
         );
       }
       parts.push(
-        `<circle cx="${start.x}" cy="${start.y}" r="${startR + haloWidth / 2}" fill="#fff"/>`,
-        `<circle cx="${start.x}" cy="${start.y}" r="${startR}" fill="${color}"/>`,
-        `<text x="${start.x}" y="${start.y}" font-size="${startFontSize}" fill="${numFill}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-family="-apple-system, system-ui, sans-serif">${r.number}</text>`,
+        `<circle cx="${start.x}" cy="${start.y}" r="${startR}" fill="${startColor}"/>`,
+        `<text x="${start.x}" y="${start.y}" font-size="${startFontSize}" fill="${numFill}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, monospace">${r.number}</text>`,
       );
       return parts.join("");
     })

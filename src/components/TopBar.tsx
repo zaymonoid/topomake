@@ -1,6 +1,7 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
 import { topoAtom, undoAtom, redoAtom } from "../state/atoms";
+import { canRedoAtom, canUndoAtom, exportableAtom } from "../state/computed";
 import { setImageAtom, setShowBannerAtom, setStartNumberAtom, setTopoNameAtom } from "../state/actions";
 import { downloadBlob, exportTopoPng } from "../util/export";
 
@@ -21,8 +22,11 @@ function readImageFile(file: File): Promise<{ dataUrl: string; width: number; he
 
 export function TopBar() {
   const topo = useAtomValue(topoAtom);
-  const [canUndo, undo] = useAtom(undoAtom);
-  const [canRedo, redo] = useAtom(redoAtom);
+  const canUndo = useAtomValue(canUndoAtom);
+  const canRedo = useAtomValue(canRedoAtom);
+  const exportable = useAtomValue(exportableAtom);
+  const undo = useSetAtom(undoAtom);
+  const redo = useSetAtom(redoAtom);
   const setImage = useSetAtom(setImageAtom);
   const setName = useSetAtom(setTopoNameAtom);
   const setStartNumber = useSetAtom(setStartNumberAtom);
@@ -97,7 +101,7 @@ export function TopBar() {
       <div className="spacer" />
       <button disabled={!canUndo} onClick={() => undo()} title="Undo (⌘Z)">Undo</button>
       <button disabled={!canRedo} onClick={() => redo()} title="Redo (⇧⌘Z)">Redo</button>
-      <button className="primary" disabled={!topo.imageDataUrl} onClick={onExport}>
+      <button className="primary" disabled={!exportable} onClick={onExport}>
         Export PNG
       </button>
     </div>

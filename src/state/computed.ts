@@ -1,0 +1,122 @@
+import { atom } from "jotai";
+import { atomFamily } from "jotai/utils";
+import { topoAtom, editorModeAtom, historyAtom } from "./atoms";
+import { Route } from "./types";
+import { ShortcutsScope } from "./mode";
+import { catmullRomPath } from "../util/spline";
+
+// === From topoAtom ===
+
+export const routesAtom = atom((get) => get(topoAtom).routes);
+
+export const imageLoadedAtom = atom(
+  (get) =>
+    get(topoAtom).imageDataUrl !== null &&
+    get(topoAtom).imageWidth > 0 &&
+    get(topoAtom).imageHeight > 0,
+);
+
+export const hasRoutesAtom = atom((get) => get(routesAtom).length > 0);
+export const routeCountAtom = atom((get) => get(routesAtom).length);
+
+export const nextRouteNumberAtom = atom((get) => {
+  const topo = get(topoAtom);
+  if (topo.routes.length === 0) return topo.startNumber;
+  return Math.max(...topo.routes.map((r) => r.number)) + 1;
+});
+
+export const bannerVisibleAtom = atom(
+  (get) => get(topoAtom).showBanner && get(imageLoadedAtom),
+);
+
+export const exportableAtom = atom((get) => get(imageLoadedAtom));
+
+// === From editorModeAtom ===
+
+export const selectedRouteIdAtom = atom((get) => {
+  const m = get(editorModeAtom);
+  return m.kind === "selected" || m.kind === "drawing" || m.kind === "dragging" ? m.routeId : null;
+});
+
+export const drawingRouteIdAtom = atom((get) => {
+  const m = get(editorModeAtom);
+  return m.kind === "drawing" ? m.routeId : null;
+});
+
+export const isDraggingAtom = atom((get) => get(editorModeAtom).kind === "dragging");
+
+export const draggingPointIndexAtom = atom((get) => {
+  const m = get(editorModeAtom);
+  return m.kind === "dragging" ? m.pointIndex : null;
+});
+
+export const canAddRouteAtom = atom(
+  (get) => get(imageLoadedAtom) && get(editorModeAtom).kind !== "drawing",
+);
+
+export const canvasCursorAtom = atom((get) => {
+  const m = get(editorModeAtom);
+  if (m.kind === "drawing") return "crosshair";
+  if (m.kind === "dragging") return "grabbing";
+  return "default";
+});
+
+export const shortcutsScopeAtom = atom<ShortcutsScope | null>((get) => {
+  const m = get(editorModeAtom);
+  if (m.kind === "drawing") return "drawing";
+  if (m.kind === "selected") return "selected";
+  return null; // global shortcuts are always mounted separately
+});
+
+// === From historyAtom ===
+
+export const canUndoAtom = atom((get) => get(historyAtom).past.length > 0);
+export const canRedoAtom = atom((get) => get(historyAtom).future.length > 0);
+
+// === Cross-cutting derivations ===
+
+export const currentRouteAtom = atom<Route | null>((get) => {
+  const id = get(selectedRouteIdAtom);
+  if (id === null) return null;
+  return get(routesAtom).find((r) => r.id === id) ?? null;
+});
+
+export type ModeHint = { title: string; hints: string[] };
+
+export const modeHintAtom = atom<ModeHint | null>((get) => {
+  const m = get(editorModeAtom);
+  if (m.kind === "empty") return { title: "Upload an image to begin", hints: [] };
+  if (m.kind === "idle") return null;
+  if (m.kind === "dragging") return null;
+  const route = get(currentRouteAtom);
+  const num = route?.number ?? "?";
+  if (m.kind === "drawing") {
+    return {
+      title: `Drawing Route ${num}`,
+      hints: ["click to place", "Enter to finish", "Esc to cancel"],
+    };
+  }
+  // selected
+  return {
+    title: `Route ${num}`,
+    hints: ["drag handles", "click line to insert", "⌫ to delete", "Esc to deselect"],
+  };
+});
+
+// === Per-route families — each route only invalidates its own derivations ===
+
+export const routeAtomFamily = atomFamily((id: string) =>
+  atom<Route | null>((get) => get(routesAtom).find((r) => r.id === id) ?? null),
+);
+
+export const routePathAtomFamily = atomFamily((id: string) =>
+  atom((get) => {
+    const route = get(routeAtomFamily(id));
+    if (!route) return "";
+    const topo = get(topoAtom);
+    if (!topo.imageWidth || !topo.imageHeight) return "";
+    return catmullRomPath(
+      route.points.map((p) => ({ x: p.x * topo.imageWidth, y: p.y * topo.imageHeight })),
+    );
+  }),
+);

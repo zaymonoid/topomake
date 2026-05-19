@@ -1,9 +1,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { topoAtom, drawingRouteIdAtom } from "../state/atoms";
-import { appendDrawingPointAtom } from "../state/actions";
+import { topoAtom } from "../state/atoms";
+import { bannerVisibleAtom, canvasCursorAtom, drawingRouteIdAtom, routesAtom } from "../state/computed";
+import { appendPointAtom } from "../state/actions";
 import { Point } from "../state/types";
 import { RouteShape } from "./RouteShape";
+import { ModeBar } from "./ModeBar";
 
 function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, h: number): Point {
   const rect = svg.getBoundingClientRect();
@@ -22,8 +24,11 @@ function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, 
 
 export function Canvas() {
   const topo = useAtomValue(topoAtom);
+  const routes = useAtomValue(routesAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
-  const appendPoint = useSetAtom(appendDrawingPointAtom);
+  const cursor = useAtomValue(canvasCursorAtom);
+  const showBanner = useAtomValue(bannerVisibleAtom);
+  const appendPoint = useSetAtom(appendPointAtom);
   const svgRef = useRef<SVGSVGElement>(null);
 
   if (!topo.imageDataUrl) {
@@ -33,15 +38,15 @@ export function Canvas() {
           <p>No image loaded.</p>
           <p style={{ fontSize: 12 }}>Upload one from the top bar to begin.</p>
         </div>
+        <ModeBar />
       </div>
     );
   }
 
   const onCanvasClick = (e: React.MouseEvent) => {
     if (!svgRef.current) return;
-    if (!drawingId) return; // Don't deselect on empty-canvas click — use Escape for that.
-    const p = clientToNormalized(e, svgRef.current, topo.imageWidth, topo.imageHeight);
-    appendPoint(p);
+    if (!drawingId) return; // selection only changes via Esc / clicking a route
+    appendPoint(clientToNormalized(e, svgRef.current, topo.imageWidth, topo.imageHeight));
   };
 
   return (
@@ -52,11 +57,10 @@ export function Canvas() {
           ref={svgRef}
           viewBox={`0 0 ${topo.imageWidth} ${topo.imageHeight}`}
           preserveAspectRatio="xMidYMid meet"
-          style={{ cursor: drawingId ? "crosshair" : "default" }}
+          style={{ cursor }}
           onClick={onCanvasClick}
         >
-          {/* Crag name banner — toggleable via top bar. */}
-          {topo.showBanner && (
+          {showBanner && (
             <g>
               <rect x={topo.imageWidth * 0.02} y={topo.imageHeight * 0.02} width={topo.imageWidth * 0.3} height={topo.imageHeight * 0.06} fill="#1e3a8a" />
               <text
@@ -74,7 +78,7 @@ export function Canvas() {
             </g>
           )}
 
-          {topo.routes.map((route) => (
+          {routes.map((route) => (
             <RouteShape
               key={route.id}
               route={route}
@@ -85,6 +89,7 @@ export function Canvas() {
           ))}
         </svg>
       </div>
+      <ModeBar />
     </div>
   );
 }
