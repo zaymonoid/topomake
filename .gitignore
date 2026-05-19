@@ -1,0 +1,29 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+*.tsbuildinfo
+
+# Editor / OS
+.DS_Store
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Playwright
+.playwright-mcp
+playwright-report
+test-results
+
+# Test screenshots
+halo-test.png
+halo-final.png
