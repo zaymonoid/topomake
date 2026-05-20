@@ -7,6 +7,7 @@ import {
   selectedAnnotationIdAtom,
   currentToolAtom,
   dragOverrideAtom,
+  extendStartSnapshotAtom,
 } from "./atoms";
 import {
   Annotation,
@@ -109,6 +110,8 @@ const numbered = (t: Topo, routes: Route[]): Route[] =>
 const snapshotOf = (t: Topo): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
+  lineWidth: t.lineWidth,
+  numberSize: t.numberSize,
   routes: t.routes,
   annotations: t.annotations,
 });
@@ -116,6 +119,8 @@ const snapshotOf = (t: Topo): Snapshot => ({
 const withRoutes = (t: Topo, routes: Route[]): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
+  lineWidth: t.lineWidth,
+  numberSize: t.numberSize,
   routes,
   annotations: t.annotations,
 });
@@ -133,6 +138,8 @@ const withAnnotationPatched = (
 ): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
+  lineWidth: t.lineWidth,
+  numberSize: t.numberSize,
   routes: t.routes,
   annotations: t.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
 });
@@ -179,6 +186,8 @@ export const setStartNumberAtom = atom(null, (get, set, startNumber: number) => 
   set(commitAtom, {
     startNumber,
     numberingOrder: topo.numberingOrder,
+    lineWidth: topo.lineWidth,
+    numberSize: topo.numberSize,
     routes,
     annotations: topo.annotations,
   });
@@ -189,9 +198,21 @@ export const setNumberingOrderAtom = atom(null, (get, set, order: NumberingOrder
   set(commitAtom, {
     startNumber: topo.startNumber,
     numberingOrder: order,
+    lineWidth: topo.lineWidth,
+    numberSize: topo.numberSize,
     routes: applyNumbering(topo.routes, topo.startNumber, order),
     annotations: topo.annotations,
   });
+});
+
+export const setLineWidthAtom = atom(null, (get, set, lineWidth: number) => {
+  const topo = get(topoAtom);
+  set(commitAtom, { ...snapshotOf(topo), lineWidth });
+});
+
+export const setNumberSizeAtom = atom(null, (get, set, numberSize: number) => {
+  const topo = get(topoAtom);
+  set(commitAtom, { ...snapshotOf(topo), numberSize });
 });
 
 // === Routes ===
@@ -209,6 +230,17 @@ export const createRouteAtom = atom(null, (get, set) => {
   };
   set(commitAtom, withRoutes(topo, numbered(topo, [...topo.routes, route])));
   set(editorModeAtom, { kind: "drawing", routeId: id });
+});
+
+// Re-enter drawing mode on an already-existing route so the user can append
+// more points to its end. Captures a snapshot so cancelDrawing can revert.
+export const extendRouteAtom = atom(null, (get, set, routeId: string) => {
+  const topo = get(topoAtom);
+  const route = topo.routes.find((r) => r.id === routeId);
+  if (!route) return;
+  set(extendStartSnapshotAtom, snapshotOf(topo));
+  set(currentToolAtom, "draw");
+  set(editorModeAtom, { kind: "drawing", routeId, resumed: true });
 });
 
 export const deleteRouteAtom = atom(null, (get, set, id: string) => {
@@ -287,6 +319,13 @@ export const finishDrawingAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "drawing") return;
   const route = get(topoAtom).routes.find((r) => r.id === m.routeId);
+  if (m.resumed) {
+    // Extend session — the route already existed. Just exit drawing.
+    set(extendStartSnapshotAtom, null);
+    set(currentToolAtom, "select");
+    set(editorModeAtom, { kind: "selected", routeId: m.routeId });
+    return;
+  }
   // Stay in branch tool when finishing a variation so the user can chain branches.
   if (!route?.branchFrom) set(currentToolAtom, "select");
   // If the route ended up with no points, drop it.
@@ -300,9 +339,23 @@ export const finishDrawingAtom = atom(null, (get, set) => {
 export const cancelDrawingAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "drawing") return;
+  if (m.resumed) {
+    // Extend session — revert to the snapshot captured when extend began.
+    const snap = get(extendStartSnapshotAtom);
+    if (snap) set(commitAtom, snap);
+    set(extendStartSnapshotAtom, null);
+    set(currentToolAtom, "select");
+    set(editorModeAtom, { kind: "selected", routeId: m.routeId });
+    return;
+  }
+  // Fresh drawing — treat Esc the same as Enter: finish, keeping the route.
   const route = get(topoAtom).routes.find((r) => r.id === m.routeId);
   if (!route?.branchFrom) set(currentToolAtom, "select");
-  set(deleteRouteAtom, m.routeId);
+  if (route && route.points.length === 0) {
+    set(deleteRouteAtom, m.routeId);
+    return;
+  }
+  set(editorModeAtom, { kind: "selected", routeId: m.routeId });
 });
 
 // === Drawing — append a point while in drawing mode ===
@@ -433,6 +486,8 @@ export const createAnnotationAtom = atom(null, (get, set, payload: { x: number; 
   set(commitAtom, {
     startNumber: topo.startNumber,
     numberingOrder: topo.numberingOrder,
+    lineWidth: topo.lineWidth,
+    numberSize: topo.numberSize,
     routes: topo.routes,
     annotations: [...topo.annotations, annotation],
   });
@@ -443,6 +498,13 @@ export const setAnnotationTextAtom = atom(
   null,
   (get, set, payload: { id: string; text: string }) => {
     set(commitAtom, withAnnotationPatched(get(topoAtom), payload.id, { text: payload.text }));
+  },
+);
+
+export const setAnnotationColorAtom = atom(
+  null,
+  (get, set, payload: { id: string; color: RouteColor }) => {
+    set(commitAtom, withAnnotationPatched(get(topoAtom), payload.id, { color: payload.color }));
   },
 );
 
@@ -465,6 +527,8 @@ export const deleteAnnotationAtom = atom(null, (get, set, id: string) => {
   set(commitAtom, {
     startNumber: topo.startNumber,
     numberingOrder: topo.numberingOrder,
+    lineWidth: topo.lineWidth,
+    numberSize: topo.numberSize,
     routes: topo.routes,
     annotations: topo.annotations.filter((a) => a.id !== id),
   });

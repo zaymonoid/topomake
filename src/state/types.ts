@@ -33,6 +33,7 @@ export type Annotation = {
   text: string;
   x: number; // normalized 0..1
   y: number;
+  color?: RouteColor;
 };
 
 export type Image = { dataUrl: string; width: number; height: number };
@@ -44,12 +45,17 @@ export type Topo = {
   // History-tracked fields (see Snapshot below):
   startNumber: number;
   numberingOrder: NumberingOrder;
+  lineWidth: number; // multiplier on rendered route stroke widths (default 1)
+  numberSize: number; // multiplier on rendered route number chip size/font (default 1)
   routes: Route[];
   annotations: Annotation[];
 };
 
 // The subset of Topo that participates in undo/redo.
-export type Snapshot = Pick<Topo, "startNumber" | "numberingOrder" | "routes" | "annotations">;
+export type Snapshot = Pick<
+  Topo,
+  "startNumber" | "numberingOrder" | "lineWidth" | "numberSize" | "routes" | "annotations"
+>;
 
 export const emptyTopo = (id: string): Topo => ({
   id,
@@ -57,6 +63,8 @@ export const emptyTopo = (id: string): Topo => ({
   image: null,
   startNumber: 1,
   numberingOrder: "created",
+  lineWidth: 1,
+  numberSize: 1,
   routes: [],
   annotations: [],
 });

@@ -5,29 +5,7 @@ import { canRedoAtom, canUndoAtom } from "../state/computed";
 import { setImageAtom, setTopoNameAtom } from "../state/actions";
 import { TopoPicker } from "./TopoPicker";
 import { SHORTCUTS } from "../input/shortcuts";
-
-async function readImageFile(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
-  // Decode with EXIF orientation applied so width/height match what the <img> displays.
-  // Then bake the orientation into a fresh dataURL so the stored bytes have no EXIF rotation.
-  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => {
-    throw new Error("Could not decode image");
-  });
-  const width = bitmap.width;
-  const height = bitmap.height;
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    bitmap.close();
-    throw new Error("Could not decode image");
-  }
-  ctx.drawImage(bitmap, 0, 0);
-  bitmap.close();
-  const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
-  const dataUrl = canvas.toDataURL(mime, mime === "image/jpeg" ? 0.92 : undefined);
-  return { dataUrl, width, height };
-}
+import { readImageFile } from "../util/image";
 
 export function TopBar() {
   const topo = useAtomValue(topoAtom);
@@ -83,27 +61,6 @@ export function TopBar() {
 
       <div className="sep" />
 
-      <button
-        className={`icon-btn ${canUndo ? "" : "disabled"}`}
-        onClick={() => canUndo && undo()}
-      >
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 8 L7 4 V6 H12 A2 2 0 0 1 14 8 V11 H12 V8 H7 V10 Z" />
-        </svg>
-        <span className="tip">Undo<kbd>{SHORTCUTS.undo.label}</kbd></span>
-      </button>
-      <button
-        className={`icon-btn ${canRedo ? "" : "disabled"}`}
-        onClick={() => canRedo && redo()}
-      >
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13 8 L9 4 V6 H4 A2 2 0 0 0 2 8 V11 H4 V8 H9 V10 Z" />
-        </svg>
-        <span className="tip">Redo<kbd>{SHORTCUTS.redo.label}</kbd></span>
-      </button>
-
-      <div className="sep" />
-
       <button className="icon-btn" onClick={() => fileRef.current?.click()}>
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
           <rect x="2" y="3" width="12" height="9" rx="1" />
@@ -122,6 +79,32 @@ export function TopBar() {
       />
 
       <div className="spacer" />
+
+      <div className="history-group" role="group" aria-label="History">
+        <button
+          className={`history-btn ${canUndo ? "" : "disabled"}`}
+          onClick={() => canUndo && undo()}
+          aria-label="Undo"
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3.5 6.5 H9.5 A3 3 0 0 1 12.5 9.5 A3 3 0 0 1 9.5 12.5 H6" />
+            <path d="M6 3.5 L3 6.5 L6 9.5" />
+          </svg>
+          <span className="tip">Undo<kbd>{SHORTCUTS.undo.label}</kbd></span>
+        </button>
+        <div className="history-divider" aria-hidden="true" />
+        <button
+          className={`history-btn ${canRedo ? "" : "disabled"}`}
+          onClick={() => canRedo && redo()}
+          aria-label="Redo"
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12.5 6.5 H6.5 A3 3 0 0 0 3.5 9.5 A3 3 0 0 0 6.5 12.5 H10" />
+            <path d="M10 3.5 L13 6.5 L10 9.5" />
+          </svg>
+          <span className="tip">Redo<kbd>{SHORTCUTS.redo.label}</kbd></span>
+        </button>
+      </div>
     </header>
   );
 }

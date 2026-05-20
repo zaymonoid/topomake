@@ -15,7 +15,7 @@ import {
   selectRouteAtom,
   branchRouteAtom,
 } from "../state/actions";
-import { currentToolAtom, hoveredHandleAtom } from "../state/atoms";
+import { currentToolAtom, hoveredHandleAtom, topoAtom } from "../state/atoms";
 import { PALETTE, Point, Route } from "../state/types";
 import { catmullRomPath } from "../util/spline";
 
@@ -43,6 +43,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const selectedId = useAtomValue(selectedRouteIdAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
   const tool = useAtomValue(currentToolAtom);
+  const topo = useAtomValue(topoAtom);
   const dragOverride = useAtomValue(dragOverrideForRouteAtomFamily(route.id));
   // Variations subscribe to their parent so the anchor follows the parent's data
   // (and the parent's drag overrides) without re-rendering every other route.
@@ -103,11 +104,11 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const end = pixelPoints[pixelPoints.length - 1];
 
   const baseSize = Math.min(imageWidth, imageHeight);
-  const lineWidth = baseSize * 0.0025;
+  const lineWidth = baseSize * 0.0025 * topo.lineWidth;
   const glowWidth = baseSize * 0.014;
-  const selectedLineWidth = baseSize * 0.0035;
-  const startR = baseSize * 0.011;
-  const startFontSize = baseSize * 0.013;
+  const selectedLineWidth = baseSize * 0.0035 * topo.lineWidth;
+  const startR = baseSize * 0.011 * topo.numberSize;
+  const startFontSize = baseSize * 0.013 * topo.numberSize;
   const endR = baseSize * 0.005;
   const handleR = baseSize * 0.013;
   const handleMidR = baseSize * 0.011;
@@ -117,7 +118,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const labelRingDash = baseSize * 0.007;
   const selectedDash = baseSize * 0.012;
   const selectedGap = baseSize * 0.008;
-  const hitWidth = baseSize * 0.025;
+  const hitWidth = baseSize * 0.012;
   const tooltipFontSize = baseSize * 0.014;
   const tooltipPadX = baseSize * 0.009;
   const tooltipPadY = baseSize * 0.006;
@@ -180,6 +181,21 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     e.preventDefault();
     e.stopPropagation();
     deletePoint({ routeId: route.id, index: ownIndex });
+  };
+
+  // Anchor handle (variations only): dragging this drags the PARENT's point at
+  // branchFrom.atIndex. The variation's rendered anchor follows automatically
+  // because parentDragOverride is read above.
+  const onAnchorHandleDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    if (branchToolActive) return;
+    if (!svgRef.current) return;
+    if (!route.branchFrom) return;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    dragPointerIdRef.current = e.pointerId;
+    dragRectRef.current = svgRef.current.getBoundingClientRect();
+    beginDrag({ routeId: route.branchFrom.routeId, pointIndex: route.branchFrom.atIndex });
   };
 
   const onBranchHandleClick = (e: React.MouseEvent, ownIndex: number) => {
@@ -300,6 +316,42 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         );
       })()}
 
+      {/* Anchor handle for a selected variation — drags the PARENT's anchor
+          point. Rendered only when selected (not in branch-tool mode) so it
+          doesn't compete with the parent's branch-tool handles. */}
+      {isSelected && !branchToolActive && isVariation && anchor && route.branchFrom && (() => {
+        const ax = anchor.x * imageWidth;
+        const ay = anchor.y * imageHeight;
+        return (
+          <g>
+            {/* Invisible larger hit zone */}
+            <circle
+              cx={ax}
+              cy={ay}
+              r={handleMidR * 1.5}
+              fill="transparent"
+              pointerEvents="all"
+              style={{ cursor: "grab" }}
+              onPointerDown={onAnchorHandleDown}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+            />
+            <circle
+              className="handle-mid"
+              cx={ax}
+              cy={ay}
+              r={handleMidR}
+              strokeWidth={handleStroke}
+              onPointerDown={onAnchorHandleDown}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+            />
+          </g>
+        );
+      })()}
+
       {/* Handles (own divergent points only — anchor belongs to parent). */}
       {showHandles &&
         ownPixelPoints.map((p, i) => {
@@ -316,24 +368,47 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
                 : "handle-end"
               : "handle-mid";
           const r = useEndpointStyle ? handleR : handleMidR;
+          const hitR = useEndpointStyle ? handleR * 1.4 : handleMidR * 1.5;
+          const branchHandlers = branchToolActive
+            ? {
+                onClick: (e: React.MouseEvent) => onBranchHandleClick(e, i),
+                onPointerEnter: () => onBranchHandleEnter(i),
+                onPointerLeave: () => onBranchHandleLeave(i),
+              }
+            : {};
           return (
-            <circle
-              key={i}
-              className={cls}
-              cx={p.x}
-              cy={p.y}
-              r={r}
-              strokeWidth={handleStroke}
-              style={branchToolActive ? { cursor: "copy" } : undefined}
-              onPointerDown={(e) => onHandleDown(e, i)}
-              onPointerMove={onHandleMove}
-              onPointerUp={onHandleUp}
-              onPointerCancel={onHandleUp}
-              onContextMenu={(e) => onHandleContextMenu(e, i)}
-              onClick={branchToolActive ? (e) => onBranchHandleClick(e, i) : undefined}
-              onPointerEnter={branchToolActive ? () => onBranchHandleEnter(i) : undefined}
-              onPointerLeave={branchToolActive ? () => onBranchHandleLeave(i) : undefined}
-            />
+            <g key={i}>
+              {/* Invisible larger hit zone — gives a clear "slightly beyond
+                  visual" pointer target without enlarging the rendered circle. */}
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r={hitR}
+                fill="transparent"
+                pointerEvents="all"
+                style={branchToolActive ? { cursor: "copy" } : { cursor: "grab" }}
+                onPointerDown={(e) => onHandleDown(e, i)}
+                onPointerMove={onHandleMove}
+                onPointerUp={onHandleUp}
+                onPointerCancel={onHandleUp}
+                onContextMenu={(e) => onHandleContextMenu(e, i)}
+                {...branchHandlers}
+              />
+              <circle
+                className={cls}
+                cx={p.x}
+                cy={p.y}
+                r={r}
+                strokeWidth={handleStroke}
+                style={branchToolActive ? { cursor: "copy" } : undefined}
+                onPointerDown={(e) => onHandleDown(e, i)}
+                onPointerMove={onHandleMove}
+                onPointerUp={onHandleUp}
+                onPointerCancel={onHandleUp}
+                onContextMenu={(e) => onHandleContextMenu(e, i)}
+                {...branchHandlers}
+              />
+            </g>
           );
         })}
 

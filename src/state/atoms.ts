@@ -28,6 +28,10 @@ export const dragOverrideAtom = atom<DragOverride>(null);
 // Which handle the pointer is currently over while the branch tool is active.
 // Drives the "Add variation" tooltip in RouteShape.
 export const hoveredHandleAtom = atom<HoveredHandle>(null);
+// Snapshot captured when entering an extend (resumed drawing) session, so Esc
+// can revert to the state before the user started adding points. Transient —
+// not part of history, just a side-channel for the cancel action.
+export const extendStartSnapshotAtom = atom<Snapshot | null>(null);
 
 // === History plumbing (write-only) ===
 //
@@ -38,6 +42,8 @@ export const hoveredHandleAtom = atom<HoveredHandle>(null);
 const toSnapshot = (t: Topo): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
+  lineWidth: t.lineWidth,
+  numberSize: t.numberSize,
   routes: t.routes,
   annotations: t.annotations,
 });

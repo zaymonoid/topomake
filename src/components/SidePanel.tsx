@@ -17,6 +17,9 @@ import {
   deleteAnnotationAtom,
   deleteRouteAtom,
   selectRouteAtom,
+  setAnnotationColorAtom,
+  setLineWidthAtom,
+  setNumberSizeAtom,
   setNumberingOrderAtom,
   setRouteColorAtom,
   setRouteFinishStyleAtom,
@@ -28,12 +31,10 @@ import { SHORTCUTS } from "../input/shortcuts";
 
 const COLORS: RouteColor[] = ["white", "blue", "red", "yellow"];
 
-function MoreIcon() {
+function TrashIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="currentColor">
-      <circle cx="8" cy="3" r="1.4" />
-      <circle cx="8" cy="8" r="1.4" />
-      <circle cx="8" cy="13" r="1.4" />
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 4 H13 M6 4 V2.5 H10 V4 M4.5 4 V13 H11.5 V4 M7 6.5 V11 M9 6.5 V11" />
     </svg>
   );
 }
@@ -53,6 +54,8 @@ export function SidePanel() {
 
   const setStartNumber = useSetAtom(setStartNumberAtom);
   const setNumberingOrder = useSetAtom(setNumberingOrderAtom);
+  const setLineWidth = useSetAtom(setLineWidthAtom);
+  const setNumberSize = useSetAtom(setNumberSizeAtom);
   const createRoute = useSetAtom(createRouteAtom);
   const deleteRoute = useSetAtom(deleteRouteAtom);
   const selectRoute = useSetAtom(selectRouteAtom);
@@ -62,6 +65,8 @@ export function SidePanel() {
   const setTool = useSetAtom(currentToolAtom);
   const setSelectedAnnId = useSetAtom(selectedAnnotationIdAtom);
   const deleteAnnotation = useSetAtom(deleteAnnotationAtom);
+  const setAnnotationColor = useSetAtom(setAnnotationColorAtom);
+  const selectedAnnotation = annotations.find((a) => a.id === selectedAnnId) ?? null;
 
   const nameRef = useRef<HTMLInputElement>(null);
 
@@ -124,6 +129,43 @@ export function SidePanel() {
         </div>
       </div>
 
+      {/* Topo style */}
+      <div className="panel-section">
+        <div className="panel-h">
+          <span className="title">Topo style</span>
+        </div>
+        <div className="slider-row">
+          <div className="slider-lbl">
+            Line width
+            <span className="slider-val">{topo.lineWidth.toFixed(2)}×</span>
+          </div>
+          <input
+            className="ts-slider"
+            type="range"
+            min={0.5}
+            max={2.5}
+            step={0.05}
+            value={topo.lineWidth}
+            onChange={(e) => setLineWidth(parseFloat(e.target.value))}
+          />
+        </div>
+        <div className="slider-row">
+          <div className="slider-lbl">
+            Number size
+            <span className="slider-val">{topo.numberSize.toFixed(2)}×</span>
+          </div>
+          <input
+            className="ts-slider"
+            type="range"
+            min={0.5}
+            max={2.5}
+            step={0.05}
+            value={topo.numberSize}
+            onChange={(e) => setNumberSize(parseFloat(e.target.value))}
+          />
+        </div>
+      </div>
+
       {/* Routes */}
       <div className="routes-wrap">
         <div className="panel-section" style={{ paddingBottom: 8 }}>
@@ -171,7 +213,6 @@ export function SidePanel() {
                     </span>
                   )}
                 </span>
-                <span className="route-meta">{r.points.length} pts</span>
                 <button
                   className={`row-action ${r.id === selectedId ? "always" : ""}`}
                   onClick={(e) => {
@@ -180,7 +221,7 @@ export function SidePanel() {
                   }}
                   title="Delete route"
                 >
-                  <MoreIcon />
+                  <TrashIcon />
                 </button>
               </div>
             );
@@ -227,13 +268,52 @@ export function SidePanel() {
                     deleteAnnotation(a.id);
                   }}
                 >
-                  <MoreIcon />
+                  <TrashIcon />
                 </button>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* Annotation inspector */}
+      {!selected && selectedAnnotation && (
+        <div className="inspector">
+          <div className="inspector-h">
+            <span
+              className="ann-color-dot"
+              style={{ background: PALETTE[selectedAnnotation.color ?? "white"] }}
+            />
+            <span className="ann-inspector-label">Annotation</span>
+            <button
+              className="icon-btn icon-btn-danger"
+              style={{ width: 24, height: 24, marginLeft: "auto" }}
+              title="Delete annotation"
+              onClick={() => deleteAnnotation(selectedAnnotation.id)}
+            >
+              <TrashIcon />
+            </button>
+          </div>
+          <div className="inspector-row">
+            <span>Color</span>
+            <div className="color-cell">
+              <div className="color-swatches">
+                {COLORS.map((c) => (
+                  <button
+                    key={c}
+                    className={`color-swatch ${(selectedAnnotation.color ?? "white") === c ? "selected" : ""}`}
+                    style={{ background: PALETTE[c] }}
+                    onClick={() =>
+                      setAnnotationColor({ id: selectedAnnotation.id, color: c })
+                    }
+                    aria-label={c}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Inspector */}
       {selected && (
@@ -271,25 +351,6 @@ export function SidePanel() {
                 <path d="M3 4 H13 M6 4 V2.5 H10 V4 M4.5 4 V13 H11.5 V4 M7 6.5 V11 M9 6.5 V11" />
               </svg>
             </button>
-          </div>
-
-          <div className="inspector-row">
-            <span>Points</span>
-            <div className="points-readout">
-              <span className="v">{selected.points.length}</span>
-              {selected.points.length > 0 && (
-                <span className="bar">
-                  {selected.points.map((_, i) => (
-                    <span
-                      key={i}
-                      className={
-                        i === 0 ? "s" : i === selected.points.length - 1 ? "e" : undefined
-                      }
-                    />
-                  ))}
-                </span>
-              )}
-            </div>
           </div>
 
           <div className="inspector-row">

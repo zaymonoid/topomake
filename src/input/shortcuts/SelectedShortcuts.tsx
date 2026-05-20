@@ -14,6 +14,10 @@ export function SelectedShortcuts() {
     if (isTypingInField()) return;
     deselect();
   });
+  useButtonPressed(inputMap, "finish", () => {
+    if (isTypingInField()) return;
+    deselect();
+  });
   useButtonPressed(inputMap, "deleteItem", () => {
     if (isTypingInField()) return;
     if (selectedId) deleteRoute(selectedId);

@@ -107,15 +107,21 @@ export const modeHintAtom = atom<ModeHint | null>((get) => {
     ? route?.name?.trim() || "Variation"
     : `Route ${route?.number ?? "?"}`;
   if (m.kind === "drawing") {
+    if (m.resumed) {
+      return {
+        title: `Extending ${label}`,
+        hints: ["click to place", "Enter to finish", "Esc to revert"],
+      };
+    }
     return {
-      title: isVariation ? `Drawing ${label}` : `Drawing ${label}`,
-      hints: ["click to place", "Enter to finish", "Esc to cancel"],
+      title: `Drawing ${label}`,
+      hints: ["click to place", "Enter or Esc to finish"],
     };
   }
   // selected
   return {
     title: label,
-    hints: ["drag handles", "click line to insert", "⌫ to delete", "Esc to deselect"],
+    hints: ["drag handles", "click line to insert", "⌫ to delete", "Enter or Esc to deselect"],
   };
 });
 

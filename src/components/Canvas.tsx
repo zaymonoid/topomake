@@ -7,10 +7,15 @@ import {
   drawingRouteIdAtom,
   routesAtom,
 } from "../state/computed";
-import { appendPointAtom, createAnnotationAtom } from "../state/actions";
+import {
+  appendPointAtom,
+  createAnnotationAtom,
+  setImageAtom,
+} from "../state/actions";
 import { Point } from "../state/types";
 import { RouteShape } from "./RouteShape";
 import { AnnotationPin } from "./AnnotationPin";
+import { readImageFile } from "../util/image";
 
 function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, h: number): Point {
   const rect = svg.getBoundingClientRect();
@@ -37,12 +42,55 @@ export function Canvas() {
   const tool = useAtomValue(currentToolAtom);
   const appendPoint = useSetAtom(appendPointAtom);
   const createAnnotation = useSetAtom(createAnnotationAtom);
+  const setImage = useSetAtom(setImageAtom);
   const setTool = useSetAtom(currentToolAtom);
   const setHoveredHandle = useSetAtom(hoveredHandleAtom);
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  // Load a dropped or picked file. When an image is already present, the user
+  // must confirm replacement — matches the TopBar upload flow.
+  const loadFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      alert("Please drop an image file.");
+      return;
+    }
+    if (image && topo.routes.length > 0) {
+      const ok = confirm("Replacing the image will keep existing routes. Continue?");
+      if (!ok) return;
+    }
+    try {
+      const data = await readImageFile(file);
+      setImage(data);
+    } catch (err) {
+      alert((err as Error).message);
+    }
+  };
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void loadFile(file);
+  };
+
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (!isDragOver) setIsDragOver(true);
+  };
+  const onDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    // Only clear when the drag leaves the inner element entirely (not on child enter).
+    if (e.currentTarget === e.target) setIsDragOver(false);
+  };
+  const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void loadFile(file);
+  };
 
   const imageWidth = image?.width ?? 0;
   const imageHeight = image?.height ?? 0;
@@ -71,11 +119,38 @@ export function Canvas() {
   if (!image) {
     return (
       <main className="canvas">
-        <div className="canvas-inner">
-          <div className="canvas-empty">
-            <p>No image loaded.</p>
-            <p className="hint">Upload one from the top bar to begin.</p>
+        <div
+          ref={innerRef}
+          className="canvas-inner"
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+        >
+          <div className={`canvas-dropzone ${isDragOver ? "is-drag-over" : ""}`}>
+            <div className="dz-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 30 A8 8 0 1 1 22 18 A10 10 0 0 1 41 22 A7 7 0 0 1 38 35" />
+                <path d="M24 38 V22 M18 28 L24 22 L30 28" />
+              </svg>
+            </div>
+            <div className="dz-title">Drop an image to start</div>
+            <div className="dz-sub">or</div>
+            <button
+              type="button"
+              className="upload-btn"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Choose a file
+            </button>
+            <div className="dz-formats">PNG · JPG</div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: "none" }}
+            onChange={onFileInputChange}
+          />
         </div>
       </main>
     );
@@ -103,7 +178,13 @@ export function Canvas() {
 
   return (
     <main className="canvas">
-      <div ref={innerRef} className="canvas-inner">
+      <div
+        ref={innerRef}
+        className={`canvas-inner ${isDragOver ? "is-drag-over" : ""}`}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+      >
         <div
           ref={stageRef}
           className="stage"

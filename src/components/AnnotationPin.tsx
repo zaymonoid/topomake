@@ -7,7 +7,7 @@ import {
   setAnnotationPosAtom,
   setAnnotationTextAtom,
 } from "../state/actions";
-import { Annotation } from "../state/types";
+import { Annotation, PALETTE } from "../state/types";
 
 type Props = {
   annotation: Annotation;
@@ -85,7 +85,11 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
   return (
     <div
       className={`ann-pin ${isSelected ? "selected" : ""} ${annotation.text === "" ? "empty" : ""}`}
-      style={{ left: `${annotation.x * 100}%`, top: `${annotation.y * 100}%` }}
+      style={{
+        left: `${annotation.x * 100}%`,
+        top: `${annotation.y * 100}%`,
+        color: PALETTE[annotation.color ?? "white"],
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

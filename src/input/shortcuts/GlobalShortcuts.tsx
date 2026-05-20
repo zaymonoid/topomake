@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { keyDown$ } from "use-control/lib/input/keyboard";
-import { undoAtom, redoAtom, currentToolAtom } from "../../state/atoms";
+import { undoAtom, redoAtom, currentToolAtom, editorModeAtom } from "../../state/atoms";
 import { canAddRouteAtom, canRedoAtom, canUndoAtom, imageLoadedAtom } from "../../state/computed";
-import { createRouteAtom, deselectAtom } from "../../state/actions";
+import { createRouteAtom, deselectAtom, extendRouteAtom } from "../../state/actions";
 import { isTypingInField } from "../useFocusGuard";
 import { SHORTCUTS } from "../shortcuts";
 
@@ -14,6 +14,8 @@ export function GlobalShortcuts() {
   const redo = useSetAtom(redoAtom);
   const setTool = useSetAtom(currentToolAtom);
   const createRoute = useSetAtom(createRouteAtom);
+  const extendRoute = useSetAtom(extendRouteAtom);
+  const editorMode = useAtomValue(editorModeAtom);
   const deselect = useSetAtom(deselectAtom);
   const canUndo = useAtomValue(canUndoAtom);
   const canRedo = useAtomValue(canRedoAtom);
@@ -47,7 +49,12 @@ export function GlobalShortcuts() {
       } else if (key === SHORTCUTS.draw.key) {
         e.preventDefault();
         setTool("draw");
-        if (canAddRoute) createRoute();
+        // Contextual: extend the selected route, else create a new one.
+        if (editorMode.kind === "selected") {
+          extendRoute(editorMode.routeId);
+        } else if (canAddRoute) {
+          createRoute();
+        }
       } else if (key === SHORTCUTS.annotate.key) {
         e.preventDefault();
         setTool("annotate");
@@ -57,7 +64,7 @@ export function GlobalShortcuts() {
       }
     });
     return () => sub.unsubscribe();
-  }, [undo, redo, canUndo, canRedo, canAddRoute, imageLoaded, setTool, createRoute, deselect]);
+  }, [undo, redo, canUndo, canRedo, canAddRoute, imageLoaded, setTool, createRoute, deselect, extendRoute, editorMode]);
 
   return null;
 }

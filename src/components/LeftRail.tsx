@@ -1,13 +1,15 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { currentToolAtom, Tool } from "../state/atoms";
+import { currentToolAtom, editorModeAtom, Tool } from "../state/atoms";
 import { canAddRouteAtom, imageLoadedAtom } from "../state/computed";
-import { createRouteAtom, deselectAtom } from "../state/actions";
+import { createRouteAtom, deselectAtom, extendRouteAtom } from "../state/actions";
 
 export function LeftRail() {
   const [tool, setTool] = useAtom(currentToolAtom);
   const imageLoaded = useAtomValue(imageLoadedAtom);
   const canAdd = useAtomValue(canAddRouteAtom);
+  const editorMode = useAtomValue(editorModeAtom);
   const createRoute = useSetAtom(createRouteAtom);
+  const extendRoute = useSetAtom(extendRouteAtom);
   const deselect = useSetAtom(deselectAtom);
 
   const onSelect = (next: Tool) => {
@@ -18,7 +20,12 @@ export function LeftRail() {
     }
     if (next === "draw") {
       setTool("draw");
-      if (canAdd) createRoute();
+      // Contextual: extend the selected route if one is selected; else create new.
+      if (editorMode.kind === "selected") {
+        extendRoute(editorMode.routeId);
+      } else if (canAdd) {
+        createRoute();
+      }
       return;
     }
     if (next === "annotate") {

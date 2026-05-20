@@ -25,12 +25,24 @@ export function StatusBar() {
 
   const hints = hint?.hints ?? [];
   const isDrawing = mode.kind === "drawing";
+  const isExtending = mode.kind === "drawing" && mode.resumed === true;
+  const isVariation = route?.branchFrom !== undefined;
+  const routeLabel = isExtending
+    ? "Extending"
+    : isDrawing
+      ? "Drawing"
+      : isVariation
+        ? "Variation"
+        : "Route";
+  const routeIdentifier = isVariation
+    ? route?.name?.trim() || "(unnamed)"
+    : `#${route?.number ?? "?"}`;
 
   return (
     <footer className="statusbar">
       <span className="mode-pill">{TOOL_LABEL[tool] ?? tool}</span>
       {route ? (
-        <span>{isDrawing ? "Drawing" : "Route"} #{route.number} · {route.points.length} pts</span>
+        <span>{routeLabel} {routeIdentifier}</span>
       ) : hint?.title ? (
         <span>{hint.title}</span>
       ) : null}
