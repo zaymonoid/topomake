@@ -18,10 +18,11 @@ import {
   deleteRouteAtom,
   selectRouteAtom,
   setRouteColorAtom,
+  setRouteFinishStyleAtom,
   setRouteNameAtom,
   setStartNumberAtom,
 } from "../state/actions";
-import { PALETTE, RouteColor } from "../state/types";
+import { PALETTE, RouteColor, RouteFinishStyle } from "../state/types";
 
 const COLORS: RouteColor[] = ["white", "blue", "red", "yellow"];
 
@@ -54,6 +55,7 @@ export function SidePanel() {
   const selectRoute = useSetAtom(selectRouteAtom);
   const setName = useSetAtom(setRouteNameAtom);
   const setColor = useSetAtom(setRouteColorAtom);
+  const setFinishStyle = useSetAtom(setRouteFinishStyleAtom);
   const setTool = useSetAtom(currentToolAtom);
   const setSelectedAnnId = useSetAtom(selectedAnnotationIdAtom);
   const deleteAnnotation = useSetAtom(deleteAnnotationAtom);
@@ -104,12 +106,11 @@ export function SidePanel() {
                 className="hdr-add"
                 disabled={!canAdd}
                 onClick={() => createRoute()}
-                title="New route"
               >
                 <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
                   <path d="M7 3 V11 M3 7 H11" />
                 </svg>
-                <span className="kbd">P</span>
+                <span className="tip">New route<kbd>P</kbd></span>
               </button>
             </div>
           </div>
@@ -156,12 +157,11 @@ export function SidePanel() {
             <button
               className="hdr-add"
               onClick={() => setTool("annotate")}
-              title="Annotate"
             >
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
                 <path d="M7 3 V11 M3 7 H11" />
               </svg>
-              <span className="kbd">T</span>
+              <span className="tip">Annotate<kbd>T</kbd></span>
             </button>
           </div>
         </div>
@@ -262,6 +262,37 @@ export function SidePanel() {
                   />
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="inspector-row">
+            <span>Finish</span>
+            <div className="select-wrap">
+              <select
+                className="ts-select"
+                value={selected.finishStyle}
+                onChange={(e) =>
+                  setFinishStyle({
+                    id: selected.id,
+                    finishStyle: e.target.value as RouteFinishStyle,
+                  })
+                }
+              >
+                <option value="circle">Anchor circle</option>
+                <option value="arrow">Arrow</option>
+              </select>
+              <svg
+                className="select-chev"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 5 L6 8 L9 5" />
+              </svg>
             </div>
           </div>
 

@@ -43,7 +43,7 @@ export function GlobalShortcuts() {
         e.preventDefault();
         setTool("select");
         deselect();
-      } else if (key === "p") {
+      } else if (key === "r") {
         e.preventDefault();
         setTool("draw");
         if (canAddRoute) createRoute();

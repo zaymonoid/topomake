@@ -55,9 +55,9 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const lineWidth = baseSize * 0.0035;
   const glowWidth = baseSize * 0.018;
   const selectedLineWidth = baseSize * 0.0045;
-  const startR = baseSize * 0.022;
-  const startFontSize = baseSize * 0.025;
-  const endR = baseSize * 0.010;
+  const startR = baseSize * 0.018;
+  const startFontSize = baseSize * 0.021;
+  const endR = baseSize * 0.007;
   const handleR = baseSize * 0.013;
   const handleMidR = baseSize * 0.011;
   const handleStroke = baseSize * 0.003;
@@ -167,7 +167,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
       )}
 
       {/* End marker */}
-      {end && pixelPoints.length >= 2 && (
+      {end && pixelPoints.length >= 2 && route.finishStyle === "circle" && (
         <circle
           cx={end.x}
           cy={end.y}
@@ -176,6 +176,36 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
           pointerEvents="none"
         />
       )}
+      {end && pixelPoints.length >= 2 && route.finishStyle === "arrow" && (() => {
+        const prev = pixelPoints[pixelPoints.length - 2];
+        const dx = end.x - prev.x;
+        const dy = end.y - prev.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len;
+        const uy = dy / len;
+        const size = baseSize * 0.016;
+        // Tip sits exactly at the route end so the head connects to the line.
+        const tipX = end.x;
+        const tipY = end.y;
+        // 35° half-angle wings, opening back along the line direction.
+        const cos = Math.cos((35 * Math.PI) / 180);
+        const sin = Math.sin((35 * Math.PI) / 180);
+        const leftX = tipX - size * (ux * cos - uy * sin);
+        const leftY = tipY - size * (uy * cos + ux * sin);
+        const rightX = tipX - size * (ux * cos + uy * sin);
+        const rightY = tipY - size * (uy * cos - ux * sin);
+        return (
+          <path
+            d={`M ${leftX} ${leftY} L ${tipX} ${tipY} L ${rightX} ${rightY}`}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={lineWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            pointerEvents="none"
+          />
+        );
+      })()}
 
       {/* Start chip with number */}
       {start && (

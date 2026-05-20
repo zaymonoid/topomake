@@ -3,20 +3,29 @@ import { useRef } from "react";
 import { topoAtom, undoAtom, redoAtom } from "../state/atoms";
 import { canRedoAtom, canUndoAtom } from "../state/computed";
 import { setImageAtom, setTopoNameAtom } from "../state/actions";
+import { TopoPicker } from "./TopoPicker";
 
-function readImageFile(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const img = new Image();
-      img.onload = () => resolve({ dataUrl, width: img.naturalWidth, height: img.naturalHeight });
-      img.onerror = () => reject(new Error("Could not decode image"));
-      img.src = dataUrl;
-    };
-    reader.onerror = () => reject(new Error("Could not read file"));
-    reader.readAsDataURL(file);
+async function readImageFile(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
+  // Decode with EXIF orientation applied so width/height match what the <img> displays.
+  // Then bake the orientation into a fresh dataURL so the stored bytes have no EXIF rotation.
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" }).catch(() => {
+    throw new Error("Could not decode image");
   });
+  const width = bitmap.width;
+  const height = bitmap.height;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    bitmap.close();
+    throw new Error("Could not decode image");
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  const mime = file.type === "image/png" ? "image/png" : "image/jpeg";
+  const dataUrl = canvas.toDataURL(mime, mime === "image/jpeg" ? 0.92 : undefined);
+  return { dataUrl, width, height };
 }
 
 export function TopBar() {
@@ -59,6 +68,8 @@ export function TopBar() {
 
       <div className="sep" />
 
+      <TopoPicker />
+
       <div className="crag-input-wrap">
         <span className="label">CRAG</span>
         <input
@@ -98,7 +109,7 @@ export function TopBar() {
           <circle cx="6" cy="7" r="1.4" />
           <path d="M2 11 L6 7.5 L10 10 L14 6" />
         </svg>
-        <span className="tip">{topo.imageDataUrl ? "Replace image" : "Upload image"}</span>
+        <span className="tip">{topo.image ? "Replace image" : "Upload image"}</span>
       </button>
 
       <input

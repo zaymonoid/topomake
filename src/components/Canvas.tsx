@@ -1,5 +1,5 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { topoAtom, currentToolAtom } from "../state/atoms";
 import {
   annotationsAtom,
@@ -29,6 +29,7 @@ function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, 
 
 export function Canvas() {
   const topo = useAtomValue(topoAtom);
+  const image = topo.image;
   const routes = useAtomValue(routesAtom);
   const annotations = useAtomValue(annotationsAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
@@ -39,8 +40,28 @@ export function Canvas() {
   const setTool = useSetAtom(currentToolAtom);
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState<{ w: number; h: number } | null>(null);
 
-  if (!topo.imageDataUrl) {
+  const imageWidth = image?.width ?? 0;
+  const imageHeight = image?.height ?? 0;
+
+  useEffect(() => {
+    const el = innerRef.current;
+    if (!el || !imageWidth || !imageHeight) return;
+    const fit = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const scale = Math.min(rect.width / imageWidth, rect.height / imageHeight);
+      setStageSize({ w: imageWidth * scale, h: imageHeight * scale });
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [imageWidth, imageHeight]);
+
+  if (!image) {
     return (
       <main className="canvas">
         <div className="canvas-inner">
@@ -55,7 +76,7 @@ export function Canvas() {
 
   const onCanvasClick = (e: React.MouseEvent) => {
     if (!svgRef.current) return;
-    const np = clientToNormalized(e, svgRef.current, topo.imageWidth, topo.imageHeight);
+    const np = clientToNormalized(e, svgRef.current, image.width, image.height);
     if (drawingId) {
       appendPoint(np);
       return;
@@ -70,13 +91,17 @@ export function Canvas() {
 
   return (
     <main className="canvas">
-      <div className="canvas-inner">
-        <div ref={stageRef} className="stage">
-          <img className="photo" src={topo.imageDataUrl} alt="" draggable={false} />
+      <div ref={innerRef} className="canvas-inner">
+        <div
+          ref={stageRef}
+          className="stage"
+          style={stageSize ? { width: stageSize.w, height: stageSize.h } : { visibility: "hidden" }}
+        >
+          <img className="photo" src={image.dataUrl} alt="" draggable={false} />
           <svg
             ref={svgRef}
             className="overlay-svg"
-            viewBox={`0 0 ${topo.imageWidth} ${topo.imageHeight}`}
+            viewBox={`0 0 ${image.width} ${image.height}`}
             preserveAspectRatio="xMidYMid meet"
             style={{ cursor: annotateCursor }}
             onClick={onCanvasClick}
@@ -85,8 +110,8 @@ export function Canvas() {
               <RouteShape
                 key={route.id}
                 route={route}
-                imageWidth={topo.imageWidth}
-                imageHeight={topo.imageHeight}
+                imageWidth={image.width}
+                imageHeight={image.height}
                 svgRef={svgRef}
               />
             ))}

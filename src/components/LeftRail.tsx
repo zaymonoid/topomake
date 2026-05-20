@@ -51,8 +51,8 @@ export function LeftRail() {
           <circle cx="14" cy="2" r="1.5" fill="currentColor" />
           <path d="M4 14 Q5 10 9 6 T 14 2" />
         </svg>
-        <span className="kbd">P</span>
-        <span className="tip">Draw route &nbsp;P</span>
+        <span className="kbd">R</span>
+        <span className="tip">Draw route &nbsp;R</span>
       </button>
       <button
         className={`tool ${tool === "annotate" ? "active" : ""}`}

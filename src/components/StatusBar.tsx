@@ -1,6 +1,7 @@
 import { useAtomValue } from "jotai";
 import { currentToolAtom, editorModeAtom } from "../state/atoms";
 import { currentRouteAtom, modeHintAtom } from "../state/computed";
+import { saveStatusAtom, SaveStatus } from "../state/persistence";
 
 const TOOL_LABEL: Record<string, string> = {
   select: "Select",
@@ -8,11 +9,19 @@ const TOOL_LABEL: Record<string, string> = {
   annotate: "Annotate",
 };
 
+const SAVE_LABEL: Record<SaveStatus, string> = {
+  idle: "—",
+  saving: "Saving…",
+  saved: "Saved",
+  error: "Save failed",
+};
+
 export function StatusBar() {
   const tool = useAtomValue(currentToolAtom);
   const route = useAtomValue(currentRouteAtom);
   const hint = useAtomValue(modeHintAtom);
   const mode = useAtomValue(editorModeAtom);
+  const saveStatus = useAtomValue(saveStatusAtom);
 
   const hints = hint?.hints ?? [];
   const isDrawing = mode.kind === "drawing";
@@ -34,7 +43,7 @@ export function StatusBar() {
       )}
       <span className="right">
         <span>100%</span>
-        <span>localStorage</span>
+        <span className={`save-status save-${saveStatus}`}>{SAVE_LABEL[saveStatus]}</span>
       </span>
     </footer>
   );

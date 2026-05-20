@@ -18,12 +18,7 @@ export const routeNumberRangeAtom = atom<{ min: number; max: number } | null>((g
   return { min: Math.min(...nums), max: Math.max(...nums) };
 });
 
-export const imageLoadedAtom = atom(
-  (get) =>
-    get(topoAtom).imageDataUrl !== null &&
-    get(topoAtom).imageWidth > 0 &&
-    get(topoAtom).imageHeight > 0,
-);
+export const imageLoadedAtom = atom((get) => get(topoAtom).image !== null);
 
 export const hasRoutesAtom = atom((get) => get(routesAtom).length > 0);
 export const routeCountAtom = atom((get) => get(routesAtom).length);

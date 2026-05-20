@@ -8,22 +8,50 @@ import {
   currentToolAtom,
   dragOverrideAtom,
 } from "./atoms";
-import { Annotation, Point, Route, RouteColor, Topo } from "./types";
+import {
+  Annotation,
+  Point,
+  Route,
+  RouteColor,
+  RouteFinishStyle,
+  Snapshot,
+  Topo,
+} from "./types";
 import { nextRouteNumberAtom } from "./computed";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-// === Image ===
+const snapshotOf = (t: Topo): Snapshot => ({
+  startNumber: t.startNumber,
+  routes: t.routes,
+  annotations: t.annotations,
+});
+
+const withRoutePatched = (t: Topo, id: string, patch: Partial<Route>): Snapshot => ({
+  startNumber: t.startNumber,
+  routes: t.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+  annotations: t.annotations,
+});
+
+const withAnnotationPatched = (
+  t: Topo,
+  id: string,
+  patch: Partial<Annotation>,
+): Snapshot => ({
+  startNumber: t.startNumber,
+  routes: t.routes,
+  annotations: t.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+});
+
+// === Image — setup state, not history-tracked ===
 
 export const setImageAtom = atom(
   null,
   (get, set, payload: { dataUrl: string; width: number; height: number }) => {
     const topo = get(topoAtom);
-    set(commitAtom, {
+    set(topoAtom, {
       ...topo,
-      imageDataUrl: payload.dataUrl,
-      imageWidth: payload.width,
-      imageHeight: payload.height,
+      image: { dataUrl: payload.dataUrl, width: payload.width, height: payload.height },
     });
     // Transition out of "empty" once an image is loaded.
     if (get(editorModeAtom).kind === "empty") {
@@ -32,24 +60,24 @@ export const setImageAtom = atom(
   },
 );
 
-// === Topo meta ===
+// === Topo meta — name is not history-tracked (renames aren't undoable) ===
 
 export const setTopoNameAtom = atom(null, (get, set, name: string) => {
-  set(commitAtom, { ...get(topoAtom), name });
+  set(topoAtom, { ...get(topoAtom), name });
 });
 
 export const setStartNumberAtom = atom(null, (get, set, startNumber: number) => {
   const topo = get(topoAtom);
   if (topo.routes.length === 0) {
-    set(commitAtom, { ...topo, startNumber });
+    set(commitAtom, { ...snapshotOf(topo), startNumber });
     return;
   }
   const minNum = Math.min(...topo.routes.map((r) => r.number));
   const delta = startNumber - minNum;
   set(commitAtom, {
-    ...topo,
     startNumber,
     routes: topo.routes.map((r) => ({ ...r, number: r.number + delta })),
+    annotations: topo.annotations,
   });
 });
 
@@ -63,37 +91,51 @@ export const createRouteAtom = atom(null, (get, set) => {
     number: get(nextRouteNumberAtom),
     name: "",
     color: "blue",
+    finishStyle: "circle",
     points: [],
   };
-  set(commitAtom, { ...topo, routes: [...topo.routes, route] });
+  set(commitAtom, {
+    startNumber: topo.startNumber,
+    routes: [...topo.routes, route],
+    annotations: topo.annotations,
+  });
   set(editorModeAtom, { kind: "drawing", routeId: id });
 });
 
 export const deleteRouteAtom = atom(null, (get, set, id: string) => {
   const topo = get(topoAtom);
-  set(commitAtom, { ...topo, routes: topo.routes.filter((r) => r.id !== id) });
+  set(commitAtom, {
+    startNumber: topo.startNumber,
+    routes: topo.routes.filter((r) => r.id !== id),
+    annotations: topo.annotations,
+  });
   const mode = get(editorModeAtom);
   if (mode.kind !== "empty" && "routeId" in mode && mode.routeId === id) {
     set(editorModeAtom, { kind: "idle" });
   }
 });
 
-const patchRoute = (topo: Topo, id: string, patch: Partial<Route>): Topo => ({
-  ...topo,
-  routes: topo.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)),
-});
-
 export const setRouteNameAtom = atom(null, (get, set, payload: { id: string; name: string }) => {
-  set(commitAtom, patchRoute(get(topoAtom), payload.id, { name: payload.name }));
+  set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { name: payload.name }));
 });
 
 export const setRouteNumberAtom = atom(null, (get, set, payload: { id: string; number: number }) => {
-  set(commitAtom, patchRoute(get(topoAtom), payload.id, { number: payload.number }));
+  set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { number: payload.number }));
 });
 
 export const setRouteColorAtom = atom(null, (get, set, payload: { id: string; color: RouteColor }) => {
-  set(commitAtom, patchRoute(get(topoAtom), payload.id, { color: payload.color }));
+  set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { color: payload.color }));
 });
+
+export const setRouteFinishStyleAtom = atom(
+  null,
+  (get, set, payload: { id: string; finishStyle: RouteFinishStyle }) => {
+    set(
+      commitAtom,
+      withRoutePatched(get(topoAtom), payload.id, { finishStyle: payload.finishStyle }),
+    );
+  },
+);
 
 // === Mode transitions ===
 
@@ -133,7 +175,7 @@ export const appendPointAtom = atom(null, (get, set, p: Point) => {
   const topo = get(topoAtom);
   const route = topo.routes.find((r) => r.id === m.routeId);
   if (!route) return;
-  set(commitAtom, patchRoute(topo, m.routeId, { points: [...route.points, p] }));
+  set(commitAtom, withRoutePatched(topo, m.routeId, { points: [...route.points, p] }));
 });
 
 // === Drag — target lives in the mode itself ===
@@ -184,7 +226,7 @@ export const insertPointAtom = atom(
     if (!route) return;
     const points = [...route.points];
     points.splice(payload.index, 0, payload.point);
-    set(commitAtom, patchRoute(topo, payload.routeId, { points }));
+    set(commitAtom, withRoutePatched(topo, payload.routeId, { points }));
   },
 );
 
@@ -195,16 +237,11 @@ export const deletePointAtom = atom(
     const route = topo.routes.find((r) => r.id === payload.routeId);
     if (!route) return;
     const points = route.points.filter((_, i) => i !== payload.index);
-    set(commitAtom, patchRoute(topo, payload.routeId, { points }));
+    set(commitAtom, withRoutePatched(topo, payload.routeId, { points }));
   },
 );
 
 // === Annotations ===
-
-const patchAnnotation = (topo: Topo, id: string, patch: Partial<Annotation>): Topo => ({
-  ...topo,
-  annotations: topo.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
-});
 
 export const createAnnotationAtom = atom(null, (get, set, payload: { x: number; y: number; text?: string }) => {
   const topo = get(topoAtom);
@@ -215,14 +252,18 @@ export const createAnnotationAtom = atom(null, (get, set, payload: { x: number; 
     x: payload.x,
     y: payload.y,
   };
-  set(commitAtom, { ...topo, annotations: [...topo.annotations, annotation] });
+  set(commitAtom, {
+    startNumber: topo.startNumber,
+    routes: topo.routes,
+    annotations: [...topo.annotations, annotation],
+  });
   set(selectedAnnotationIdAtom, id);
 });
 
 export const setAnnotationTextAtom = atom(
   null,
   (get, set, payload: { id: string; text: string }) => {
-    set(commitAtom, patchAnnotation(get(topoAtom), payload.id, { text: payload.text }));
+    set(commitAtom, withAnnotationPatched(get(topoAtom), payload.id, { text: payload.text }));
   },
 );
 
@@ -242,7 +283,11 @@ export const setAnnotationPosAtom = atom(
 
 export const deleteAnnotationAtom = atom(null, (get, set, id: string) => {
   const topo = get(topoAtom);
-  set(commitAtom, { ...topo, annotations: topo.annotations.filter((a) => a.id !== id) });
+  set(commitAtom, {
+    startNumber: topo.startNumber,
+    routes: topo.routes,
+    annotations: topo.annotations.filter((a) => a.id !== id),
+  });
   if (get(selectedAnnotationIdAtom) === id) set(selectedAnnotationIdAtom, null);
 });
 
