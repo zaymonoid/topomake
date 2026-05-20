@@ -5,6 +5,7 @@ import { undoAtom, redoAtom, currentToolAtom } from "../../state/atoms";
 import { canAddRouteAtom, canRedoAtom, canUndoAtom, imageLoadedAtom } from "../../state/computed";
 import { createRouteAtom, deselectAtom } from "../../state/actions";
 import { isTypingInField } from "../useFocusGuard";
+import { SHORTCUTS } from "../shortcuts";
 
 // Undo/redo need modifier-key inspection, which the `keycode`-based hooks don't expose.
 // Subscribe to use-control's raw keyDown$ observable so we get the underlying KeyboardEvent.
@@ -25,7 +26,7 @@ export function GlobalShortcuts() {
       const key = e.key.toLowerCase();
 
       // Undo / redo
-      if (key === "z" && (e.metaKey || e.ctrlKey)) {
+      if (key === SHORTCUTS.undo.key && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
         if (e.shiftKey) {
           if (canRedo) redo();
@@ -39,17 +40,20 @@ export function GlobalShortcuts() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (!imageLoaded) return;
 
-      if (key === "v") {
+      if (key === SHORTCUTS.select.key) {
         e.preventDefault();
         setTool("select");
         deselect();
-      } else if (key === "r") {
+      } else if (key === SHORTCUTS.draw.key) {
         e.preventDefault();
         setTool("draw");
         if (canAddRoute) createRoute();
-      } else if (key === "t") {
+      } else if (key === SHORTCUTS.annotate.key) {
         e.preventDefault();
         setTool("annotate");
+      } else if (key === SHORTCUTS.branch.key) {
+        e.preventDefault();
+        setTool("branch");
       }
     });
     return () => sub.unsubscribe();

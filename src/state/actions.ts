@@ -23,24 +23,84 @@ import { nextRouteNumberAtom } from "./computed";
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 // Reassigns `number` on each route per the chosen order.
-// "created" -> unchanged. "ltr" / "rtl" -> stable sort by start.x, assign from startNumber.
+// Variations (branchFrom set) are excluded from numbering and keep number = 0.
+// "created" -> non-variations unchanged. "ltr" / "rtl" -> stable sort by start.x, assign from startNumber.
 // Routes without points keep their relative order at the end of the sequence.
 function applyNumbering(
   routes: Route[],
   startNumber: number,
   order: NumberingOrder,
 ): Route[] {
-  if (order === "created") return routes;
-  const decorated = routes.map((r, i) => ({ r, i }));
-  const withPoints = decorated.filter((d) => d.r.points.length > 0);
-  const withoutPoints = decorated.filter((d) => d.r.points.length === 0);
-  withPoints.sort((a, b) => {
-    const dx = a.r.points[0].x - b.r.points[0].x;
-    if (dx !== 0) return order === "ltr" ? dx : -dx;
-    return a.i - b.i;
+  const numberableInput = routes.filter((r) => r.branchFrom === undefined);
+  let numbered: Route[];
+  if (order === "created") {
+    numbered = numberableInput;
+  } else {
+    const decorated = numberableInput.map((r, i) => ({ r, i }));
+    const withPoints = decorated.filter((d) => d.r.points.length > 0);
+    const withoutPoints = decorated.filter((d) => d.r.points.length === 0);
+    withPoints.sort((a, b) => {
+      const dx = a.r.points[0].x - b.r.points[0].x;
+      if (dx !== 0) return order === "ltr" ? dx : -dx;
+      return a.i - b.i;
+    });
+    const ordered = [...withPoints, ...withoutPoints].map((d) => d.r);
+    numbered = ordered.map((r, i) => ({ ...r, number: startNumber + i }));
+  }
+  // Preserve original order of all routes, but with renumbered fields applied.
+  const byId = new Map(numbered.map((r) => [r.id, r]));
+  return routes.map((r) =>
+    r.branchFrom === undefined ? (byId.get(r.id) ?? r) : { ...r, number: 0 },
+  );
+}
+
+// Collect a route id and all its transitive variation descendants.
+function collectWithDescendants(rootId: string, routes: Route[]): Set<string> {
+  const out = new Set<string>([rootId]);
+  let added = true;
+  while (added) {
+    added = false;
+    for (const r of routes) {
+      if (r.branchFrom && out.has(r.branchFrom.routeId) && !out.has(r.id)) {
+        out.add(r.id);
+        added = true;
+      }
+    }
+  }
+  return out;
+}
+
+// After a parent's points have been mutated, adjust descendants' branchFrom.atIndex.
+// `kind` tells us what happened so we can shift correctly.
+//   "insert" at index i: any anchor at i or later shifts up by 1.
+//   "delete" at index i: any anchor at i is orphaned -> caller should remove that variation;
+//                        any anchor at i+1 or later shifts down by 1.
+function adjustAnchorsAfterPointChange(
+  routes: Route[],
+  parentRouteId: string,
+  kind: "insert" | "delete",
+  index: number,
+): { routes: Route[]; orphanedVariationIds: string[] } {
+  const orphaned: string[] = [];
+  const out = routes.map((r) => {
+    if (!r.branchFrom || r.branchFrom.routeId !== parentRouteId) return r;
+    const at = r.branchFrom.atIndex;
+    if (kind === "insert") {
+      return at >= index
+        ? { ...r, branchFrom: { ...r.branchFrom, atIndex: at + 1 } }
+        : r;
+    }
+    // delete
+    if (at === index) {
+      orphaned.push(r.id);
+      return r;
+    }
+    if (at > index) {
+      return { ...r, branchFrom: { ...r.branchFrom, atIndex: at - 1 } };
+    }
+    return r;
   });
-  const ordered = [...withPoints, ...withoutPoints].map((d) => d.r);
-  return ordered.map((r, i) => ({ ...r, number: startNumber + i }));
+  return { routes: out, orphanedVariationIds: orphaned };
 }
 
 const numbered = (t: Topo, routes: Route[]): Route[] =>
@@ -153,12 +213,43 @@ export const createRouteAtom = atom(null, (get, set) => {
 
 export const deleteRouteAtom = atom(null, (get, set, id: string) => {
   const topo = get(topoAtom);
-  set(commitAtom, withRoutes(topo, numbered(topo, topo.routes.filter((r) => r.id !== id))));
+  const toRemove = collectWithDescendants(id, topo.routes);
+  set(
+    commitAtom,
+    withRoutes(topo, numbered(topo, topo.routes.filter((r) => !toRemove.has(r.id)))),
+  );
   const mode = get(editorModeAtom);
-  if (mode.kind !== "empty" && "routeId" in mode && mode.routeId === id) {
+  if (mode.kind !== "empty" && "routeId" in mode && toRemove.has(mode.routeId)) {
     set(editorModeAtom, { kind: "idle" });
   }
 });
+
+// === Variations ===
+//
+// Spawn a new route that branches off `parentRouteId` at `atIndex`. The new route
+// starts with empty `points` — drawing mode appends from there. Its first rendered
+// segment runs from the parent's anchor node to its first divergent point.
+export const branchRouteAtom = atom(
+  null,
+  (get, set, payload: { parentRouteId: string; atIndex: number }) => {
+    const topo = get(topoAtom);
+    const parent = topo.routes.find((r) => r.id === payload.parentRouteId);
+    if (!parent) return;
+    if (payload.atIndex < 0 || payload.atIndex >= parent.points.length) return;
+    const id = uid();
+    const variation: Route = {
+      id,
+      number: 0,
+      name: "",
+      color: parent.color,
+      finishStyle: "circle",
+      points: [],
+      branchFrom: { routeId: parent.id, atIndex: payload.atIndex },
+    };
+    set(commitAtom, withRoutes(topo, numbered(topo, [...topo.routes, variation])));
+    set(editorModeAtom, { kind: "drawing", routeId: id });
+  },
+);
 
 export const setRouteNameAtom = atom(null, (get, set, payload: { id: string; name: string }) => {
   set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { name: payload.name }));
@@ -195,9 +286,10 @@ export const deselectAtom = atom(null, (_get, set) => {
 export const finishDrawingAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "drawing") return;
-  set(currentToolAtom, "select");
-  // If the route ended up with no points, drop it.
   const route = get(topoAtom).routes.find((r) => r.id === m.routeId);
+  // Stay in branch tool when finishing a variation so the user can chain branches.
+  if (!route?.branchFrom) set(currentToolAtom, "select");
+  // If the route ended up with no points, drop it.
   if (route && route.points.length === 0) {
     set(deleteRouteAtom, m.routeId);
     return;
@@ -208,7 +300,8 @@ export const finishDrawingAtom = atom(null, (get, set) => {
 export const cancelDrawingAtom = atom(null, (get, set) => {
   const m = get(editorModeAtom);
   if (m.kind !== "drawing") return;
-  set(currentToolAtom, "select");
+  const route = get(topoAtom).routes.find((r) => r.id === m.routeId);
+  if (!route?.branchFrom) set(currentToolAtom, "select");
   set(deleteRouteAtom, m.routeId);
 });
 
@@ -276,11 +369,17 @@ export const insertPointAtom = atom(
     if (!route) return;
     const points = [...route.points];
     points.splice(payload.index, 0, payload.point);
-    const updated = topo.routes.map((r) =>
+    const withParent = topo.routes.map((r) =>
       r.id === payload.routeId ? { ...r, points } : r,
     );
+    const { routes: shifted } = adjustAnchorsAfterPointChange(
+      withParent,
+      payload.routeId,
+      "insert",
+      payload.index,
+    );
     // Re-number only when the start point changed (inserting at index 0).
-    const routes = payload.index === 0 ? numbered(topo, updated) : updated;
+    const routes = payload.index === 0 ? numbered(topo, shifted) : shifted;
     set(commitAtom, withRoutes(topo, routes));
   },
 );
@@ -292,11 +391,30 @@ export const deletePointAtom = atom(
     const route = topo.routes.find((r) => r.id === payload.routeId);
     if (!route) return;
     const points = route.points.filter((_, i) => i !== payload.index);
-    const updated = topo.routes.map((r) =>
+    const withParent = topo.routes.map((r) =>
       r.id === payload.routeId ? { ...r, points } : r,
     );
+    const { routes: shifted, orphanedVariationIds } = adjustAnchorsAfterPointChange(
+      withParent,
+      payload.routeId,
+      "delete",
+      payload.index,
+    );
+    // Cascade-delete any variations whose anchor node was just removed.
+    let pruned = shifted;
+    if (orphanedVariationIds.length > 0) {
+      const toRemove = new Set<string>();
+      for (const id of orphanedVariationIds) {
+        for (const x of collectWithDescendants(id, shifted)) toRemove.add(x);
+      }
+      pruned = shifted.filter((r) => !toRemove.has(r.id));
+      const mode = get(editorModeAtom);
+      if (mode.kind !== "empty" && "routeId" in mode && toRemove.has(mode.routeId)) {
+        set(editorModeAtom, { kind: "idle" });
+      }
+    }
     // Re-number only when the start point changed (removing index 0).
-    const routes = payload.index === 0 ? numbered(topo, updated) : updated;
+    const routes = payload.index === 0 ? numbered(topo, pruned) : pruned;
     set(commitAtom, withRoutes(topo, routes));
   },
 );

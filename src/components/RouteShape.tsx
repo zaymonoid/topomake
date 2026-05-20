@@ -1,7 +1,21 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { selectedRouteIdAtom, drawingRouteIdAtom, dragOverrideForRouteAtomFamily } from "../state/computed";
-import { beginDragAtom, setDragPointAtom, endDragAtom, insertPointAtom, deletePointAtom, selectRouteAtom } from "../state/actions";
+import {
+  selectedRouteIdAtom,
+  drawingRouteIdAtom,
+  dragOverrideForRouteAtomFamily,
+  routeAtomFamily,
+} from "../state/computed";
+import {
+  beginDragAtom,
+  setDragPointAtom,
+  endDragAtom,
+  insertPointAtom,
+  deletePointAtom,
+  selectRouteAtom,
+  branchRouteAtom,
+} from "../state/actions";
+import { currentToolAtom, hoveredHandleAtom } from "../state/atoms";
 import { PALETTE, Point, Route } from "../state/types";
 import { catmullRomPath } from "../util/spline";
 
@@ -23,19 +37,34 @@ function clientToNormalized(e: { clientX: number; clientY: number }, rect: DOMRe
   return { x: px / w, y: py / h };
 }
 
+const NO_PARENT = "__no_parent__";
+
 export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const selectedId = useAtomValue(selectedRouteIdAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
+  const tool = useAtomValue(currentToolAtom);
   const dragOverride = useAtomValue(dragOverrideForRouteAtomFamily(route.id));
+  // Variations subscribe to their parent so the anchor follows the parent's data
+  // (and the parent's drag overrides) without re-rendering every other route.
+  const parentRoute = useAtomValue(routeAtomFamily(route.branchFrom?.routeId ?? NO_PARENT));
+  const parentDragOverride = useAtomValue(
+    dragOverrideForRouteAtomFamily(route.branchFrom?.routeId ?? NO_PARENT),
+  );
+  const hoveredHandle = useAtomValue(hoveredHandleAtom);
+  const setHoveredHandle = useSetAtom(hoveredHandleAtom);
   const selectRoute = useSetAtom(selectRouteAtom);
   const beginDrag = useSetAtom(beginDragAtom);
   const setDragPoint = useSetAtom(setDragPointAtom);
   const endDrag = useSetAtom(endDragAtom);
   const insertPoint = useSetAtom(insertPointAtom);
   const deletePoint = useSetAtom(deletePointAtom);
+  const branchRoute = useSetAtom(branchRouteAtom);
 
   const isSelected = selectedId === route.id;
   const isDrawing = drawingId === route.id;
+  const isVariation = route.branchFrom !== undefined;
+  const isAnyDrawing = drawingId !== null;
+  const branchToolActive = tool === "branch" && !isAnyDrawing;
   const startColor = PALETTE[route.color];
   const numColor = route.color === "white" || route.color === "yellow" ? "#000" : "#fff";
 
@@ -43,21 +72,43 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   // Cached on pointerdown so per-frame moves don't force a layout flush.
   const dragRectRef = useRef<DOMRect | null>(null);
 
-  const pixelPoints = route.points.map((p, i) => {
+  // The variation's anchor in normalized coords, taking the parent's live drag
+  // override into account when the parent's anchor node is being dragged.
+  let anchor: Point | null = null;
+  if (route.branchFrom && parentRoute) {
+    const at = route.branchFrom.atIndex;
+    if (
+      parentDragOverride &&
+      parentDragOverride.pointIndex === at
+    ) {
+      anchor = parentDragOverride.point;
+    } else {
+      anchor = parentRoute.points[at] ?? null;
+    }
+  }
+
+  // Own (divergent) points in pixel coords, with this route's drag override applied.
+  const ownPixelPoints = route.points.map((p, i) => {
     const src = dragOverride && i === dragOverride.pointIndex ? dragOverride.point : p;
     return { x: src.x * imageWidth, y: src.y * imageHeight };
   });
+  // Full pixel polyline: anchor prepended for variations so the connecting segment renders.
+  const pixelPoints =
+    anchor !== null
+      ? [{ x: anchor.x * imageWidth, y: anchor.y * imageHeight }, ...ownPixelPoints]
+      : ownPixelPoints;
+
   const pathD = catmullRomPath(pixelPoints);
-  const start = pixelPoints[0];
+  const startChipPoint = !isVariation ? pixelPoints[0] : null;
   const end = pixelPoints[pixelPoints.length - 1];
 
   const baseSize = Math.min(imageWidth, imageHeight);
-  const lineWidth = baseSize * 0.0035;
-  const glowWidth = baseSize * 0.018;
-  const selectedLineWidth = baseSize * 0.0045;
-  const startR = baseSize * 0.018;
-  const startFontSize = baseSize * 0.021;
-  const endR = baseSize * 0.007;
+  const lineWidth = baseSize * 0.0025;
+  const glowWidth = baseSize * 0.014;
+  const selectedLineWidth = baseSize * 0.0035;
+  const startR = baseSize * 0.011;
+  const startFontSize = baseSize * 0.013;
+  const endR = baseSize * 0.005;
   const handleR = baseSize * 0.013;
   const handleMidR = baseSize * 0.011;
   const handleStroke = baseSize * 0.003;
@@ -67,9 +118,14 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const selectedDash = baseSize * 0.012;
   const selectedGap = baseSize * 0.008;
   const hitWidth = baseSize * 0.025;
+  const tooltipFontSize = baseSize * 0.014;
+  const tooltipPadX = baseSize * 0.009;
+  const tooltipPadY = baseSize * 0.006;
+  const tooltipOffset = baseSize * 0.028;
 
   const onLineClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (branchToolActive) return; // branch tool only acts on handle clicks
     if (!isSelected) {
       selectRoute(route.id);
       return;
@@ -77,26 +133,32 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     if (isDrawing || !svgRef.current) return;
     const np = clientToNormalized(e, svgRef.current.getBoundingClientRect(), imageWidth, imageHeight);
     const clickPx = { x: np.x * imageWidth, y: np.y * imageHeight };
-    let bestIdx = 1;
+    let bestSegIdx = 0;
     let bestDist = Infinity;
     for (let i = 0; i < pixelPoints.length - 1; i++) {
       const d = pointSegmentDistance(clickPx, pixelPoints[i], pixelPoints[i + 1]);
       if (d < bestDist) {
         bestDist = d;
-        bestIdx = i + 1;
+        bestSegIdx = i;
       }
     }
-    insertPoint({ routeId: route.id, index: bestIdx, point: np });
+    // pixelPoints includes the prepended anchor for variations, so the mapping
+    // from segment index to own-points insert index differs:
+    //   non-variation: segment i is between own[i] and own[i+1] -> insert at i+1
+    //   variation:     segment 0 is anchor->own[0], segment i is between own[i-1] and own[i] -> insert at i
+    const insertIdx = isVariation ? bestSegIdx : bestSegIdx + 1;
+    insertPoint({ routeId: route.id, index: insertIdx, point: np });
   };
 
-  const onHandleDown = (e: React.PointerEvent, index: number) => {
+  const onHandleDown = (e: React.PointerEvent, ownIndex: number) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+    if (branchToolActive) return; // branch tool uses onClick instead
     if (!svgRef.current) return;
     (e.target as Element).setPointerCapture(e.pointerId);
     dragPointerIdRef.current = e.pointerId;
     dragRectRef.current = svgRef.current.getBoundingClientRect();
-    beginDrag({ routeId: route.id, pointIndex: index });
+    beginDrag({ routeId: route.id, pointIndex: ownIndex });
   };
 
   const onHandleMove = (e: React.PointerEvent) => {
@@ -112,24 +174,57 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     endDrag();
   };
 
-  const onHandleContextMenu = (e: React.MouseEvent, index: number) => {
+  const onHandleContextMenu = (e: React.MouseEvent, ownIndex: number) => {
     if (isDrawing) return;
     if (route.points.length <= 2) return;
     e.preventDefault();
     e.stopPropagation();
-    deletePoint({ routeId: route.id, index });
+    deletePoint({ routeId: route.id, index: ownIndex });
   };
+
+  const onBranchHandleClick = (e: React.MouseEvent, ownIndex: number) => {
+    e.stopPropagation();
+    branchRoute({ parentRouteId: route.id, atIndex: ownIndex });
+  };
+
+  const onBranchHandleEnter = (ownIndex: number) => {
+    setHoveredHandle({ routeId: route.id, index: ownIndex });
+  };
+
+  const onBranchHandleLeave = (ownIndex: number) => {
+    const h = hoveredHandle;
+    if (h && h.routeId === route.id && h.index === ownIndex) {
+      setHoveredHandle(null);
+    }
+  };
+
+  // Show handles when the route is selected OR the branch tool is offering them.
+  const showHandles = isSelected || branchToolActive;
+  const hoveredOnThis =
+    branchToolActive && hoveredHandle && hoveredHandle.routeId === route.id
+      ? hoveredHandle.index
+      : null;
+  const hoveredPx =
+    hoveredOnThis !== null ? ownPixelPoints[hoveredOnThis] ?? null : null;
+  const tooltipText = "Add variation";
+  const tooltipTextWidth = tooltipText.length * tooltipFontSize * 0.6;
+  const tooltipBoxW = tooltipTextWidth + tooltipPadX * 2;
+  const tooltipBoxH = tooltipFontSize + tooltipPadY * 2;
 
   return (
     <g>
-      {/* Wide invisible hit target */}
+      {/* Wide invisible hit target — disabled in branch mode so it doesn't
+          shield the handles below from pointer events. */}
       {pathD && (
         <path
           d={pathD}
           stroke="transparent"
           strokeWidth={hitWidth}
           fill="none"
-          style={{ cursor: isSelected ? (isDrawing ? "default" : "copy") : "pointer" }}
+          pointerEvents={branchToolActive ? "none" : "auto"}
+          style={{
+            cursor: isSelected ? (isDrawing ? "default" : "copy") : "pointer",
+          }}
           onClick={onLineClick}
         />
       )}
@@ -184,10 +279,8 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         const ux = dx / len;
         const uy = dy / len;
         const size = baseSize * 0.016;
-        // Tip sits exactly at the route end so the head connects to the line.
         const tipX = end.x;
         const tipY = end.y;
-        // 35° half-angle wings, opening back along the line direction.
         const cos = Math.cos((35 * Math.PI) / 180);
         const sin = Math.sin((35 * Math.PI) / 180);
         const leftX = tipX - size * (ux * cos - uy * sin);
@@ -207,13 +300,76 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         );
       })()}
 
-      {/* Start chip with number */}
-      {start && (
-        <g style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); selectRoute(route.id); }}>
-          <circle cx={start.x} cy={start.y} r={startR} fill={startColor} />
+      {/* Handles (own divergent points only — anchor belongs to parent). */}
+      {showHandles &&
+        ownPixelPoints.map((p, i) => {
+          const isFirst = i === 0;
+          const isLast = i === ownPixelPoints.length - 1;
+          // Treat first/last as "endpoint" handles for non-variations; for variations,
+          // the "start" is the parent's anchor so even own[0] is a mid-style handle.
+          const useEndpointStyle = !isVariation && (isFirst || isLast);
+          const cls = branchToolActive
+            ? "handle-mid handle-branch"
+            : useEndpointStyle
+              ? isFirst
+                ? "handle-start"
+                : "handle-end"
+              : "handle-mid";
+          const r = useEndpointStyle ? handleR : handleMidR;
+          return (
+            <circle
+              key={i}
+              className={cls}
+              cx={p.x}
+              cy={p.y}
+              r={r}
+              strokeWidth={handleStroke}
+              style={branchToolActive ? { cursor: "copy" } : undefined}
+              onPointerDown={(e) => onHandleDown(e, i)}
+              onPointerMove={onHandleMove}
+              onPointerUp={onHandleUp}
+              onPointerCancel={onHandleUp}
+              onContextMenu={(e) => onHandleContextMenu(e, i)}
+              onClick={branchToolActive ? (e) => onBranchHandleClick(e, i) : undefined}
+              onPointerEnter={branchToolActive ? () => onBranchHandleEnter(i) : undefined}
+              onPointerLeave={branchToolActive ? () => onBranchHandleLeave(i) : undefined}
+            />
+          );
+        })}
+
+      {/* Dashed label ring around start chip when selected — non-variations only. */}
+      {isSelected && startChipPoint && (
+        <circle
+          className="label-ring"
+          cx={startChipPoint.x}
+          cy={startChipPoint.y}
+          r={labelRingR}
+          strokeWidth={labelRingStroke}
+          strokeDasharray={`${labelRingDash} ${labelRingDash}`}
+          pointerEvents="none"
+        />
+      )}
+
+      {/* Start chip with number — rendered last so the number stays readable above
+          any handles drawn at the same position. Non-interactive when handles are
+          shown so clicks fall through to the handle below. */}
+      {startChipPoint && (
+        <g
+          style={{ cursor: showHandles ? "default" : "pointer" }}
+          pointerEvents={showHandles ? "none" : "auto"}
+          onClick={
+            showHandles
+              ? undefined
+              : (e) => {
+                  e.stopPropagation();
+                  selectRoute(route.id);
+                }
+          }
+        >
+          <circle cx={startChipPoint.x} cy={startChipPoint.y} r={startR} fill={startColor} />
           <text
-            x={start.x}
-            y={start.y}
+            x={startChipPoint.x}
+            y={startChipPoint.y}
             fontSize={startFontSize}
             fill={numColor}
             textAnchor="middle"
@@ -228,42 +384,31 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         </g>
       )}
 
-      {/* Dashed label ring around start chip when selected */}
-      {isSelected && start && (
-        <circle
-          className="label-ring"
-          cx={start.x}
-          cy={start.y}
-          r={labelRingR}
-          strokeWidth={labelRingStroke}
-          strokeDasharray={`${labelRingDash} ${labelRingDash}`}
-          pointerEvents="none"
-        />
+      {/* Branch-tool tooltip */}
+      {hoveredPx && (
+        <g pointerEvents="none">
+          <rect
+            className="branch-tip-box"
+            x={hoveredPx.x - tooltipBoxW / 2}
+            y={hoveredPx.y - tooltipOffset - tooltipBoxH}
+            width={tooltipBoxW}
+            height={tooltipBoxH}
+            rx={tooltipBoxH * 0.2}
+            ry={tooltipBoxH * 0.2}
+          />
+          <text
+            className="branch-tip-text"
+            x={hoveredPx.x}
+            y={hoveredPx.y - tooltipOffset - tooltipBoxH / 2}
+            fontSize={tooltipFontSize}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fontFamily="'Inter', sans-serif"
+          >
+            {tooltipText}
+          </text>
+        </g>
       )}
-
-      {/* Handles */}
-      {isSelected &&
-        pixelPoints.map((p, i) => {
-          const isStart = i === 0;
-          const isEnd = i === pixelPoints.length - 1;
-          const cls = isStart ? "handle-start" : isEnd ? "handle-end" : "handle-mid";
-          const r = isStart || isEnd ? handleR : handleMidR;
-          return (
-            <circle
-              key={i}
-              className={cls}
-              cx={p.x}
-              cy={p.y}
-              r={r}
-              strokeWidth={handleStroke}
-              onPointerDown={(e) => onHandleDown(e, i)}
-              onPointerMove={onHandleMove}
-              onPointerUp={onHandleUp}
-              onPointerCancel={onHandleUp}
-              onContextMenu={(e) => onHandleContextMenu(e, i)}
-            />
-          );
-        })}
     </g>
   );
 }

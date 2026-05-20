@@ -24,6 +24,7 @@ import {
   setStartNumberAtom,
 } from "../state/actions";
 import { NumberingOrder, PALETTE, RouteColor, RouteFinishStyle } from "../state/types";
+import { SHORTCUTS } from "../input/shortcuts";
 
 const COLORS: RouteColor[] = ["white", "blue", "red", "yellow"];
 
@@ -138,7 +139,7 @@ export function SidePanel() {
                 <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
                   <path d="M7 3 V11 M3 7 H11" />
                 </svg>
-                <span className="tip">New route<kbd>P</kbd></span>
+                <span className="tip">New route<kbd>{SHORTCUTS.draw.label}</kbd></span>
               </button>
             </div>
           </div>
@@ -146,33 +147,44 @@ export function SidePanel() {
 
         <div className="routes">
           {routes.length === 0 && <div className="routes-empty">No routes yet.</div>}
-          {routes.map((r) => (
-            <div
-              key={r.id}
-              className={`route-row ${r.id === selectedId ? "selected" : ""}`}
-              onClick={() => selectRoute(r.id)}
-            >
-              <span className="num-chip">{r.number}</span>
-              <span
-                className="swatch"
-                style={{ background: PALETTE[r.color] }}
-              />
-              <span className="route-name">
-                {r.name || <span className="placeholder">unnamed route</span>}
-              </span>
-              <span className="route-meta">{r.points.length} pts</span>
-              <button
-                className={`row-action ${r.id === selectedId ? "always" : ""}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteRoute(r.id);
-                }}
-                title="Delete route"
+          {routes.map((r) => {
+            const variation = r.branchFrom !== undefined;
+            return (
+              <div
+                key={r.id}
+                className={`route-row ${r.id === selectedId ? "selected" : ""} ${variation ? "variation" : ""}`}
+                onClick={() => selectRoute(r.id)}
               >
-                <MoreIcon />
-              </button>
-            </div>
-          ))}
+                {variation ? (
+                  <span className="var-chip" title="Variation">↳</span>
+                ) : (
+                  <span className="num-chip">{r.number}</span>
+                )}
+                <span
+                  className="swatch"
+                  style={{ background: PALETTE[r.color] }}
+                />
+                <span className="route-name">
+                  {r.name || (
+                    <span className="placeholder">
+                      {variation ? "unnamed variation" : "unnamed route"}
+                    </span>
+                  )}
+                </span>
+                <span className="route-meta">{r.points.length} pts</span>
+                <button
+                  className={`row-action ${r.id === selectedId ? "always" : ""}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteRoute(r.id);
+                  }}
+                  title="Delete route"
+                >
+                  <MoreIcon />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -189,12 +201,12 @@ export function SidePanel() {
               <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
                 <path d="M7 3 V11 M3 7 H11" />
               </svg>
-              <span className="tip">Annotate<kbd>T</kbd></span>
+              <span className="tip">Annotate<kbd>{SHORTCUTS.annotate.label}</kbd></span>
             </button>
           </div>
         </div>
         {annotations.length === 0 ? (
-          <div className="ann-list-empty">No annotations. Press T then click the photo.</div>
+          <div className="ann-list-empty">No annotations. Press {SHORTCUTS.annotate.label} then click the photo.</div>
         ) : (
           <div className="ann-list">
             {annotations.map((a) => (
@@ -227,13 +239,17 @@ export function SidePanel() {
       {selected && (
         <div className="inspector">
           <div className="inspector-h">
-            <span className="num-chip">{selected.number}</span>
+            {selected.branchFrom !== undefined ? (
+              <span className="var-chip" title="Variation">↳</span>
+            ) : (
+              <span className="num-chip">{selected.number}</span>
+            )}
             <input
               ref={nameRef}
               className="name-edit"
               value={selected.name}
               onChange={(e) => setName({ id: selected.id, name: e.target.value })}
-              placeholder="unnamed route"
+              placeholder={selected.branchFrom !== undefined ? "unnamed variation" : "unnamed route"}
             />
             <button
               className="icon-btn"

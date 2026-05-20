@@ -1,8 +1,20 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 import { topoAtom, editorModeAtom, historyAtom, dragOverrideAtom, DragOverride } from "./atoms";
-import { Route } from "./types";
+import { Point, Route } from "./types";
 import { ShortcutsScope } from "./mode";
+
+// For a variation, prepend the parent's anchor point so the rendered polyline
+// runs from the anchor through the variation's divergent points. For a non-variation
+// (or an orphan whose parent vanished), returns the route's own points unchanged.
+export function effectivePoints(route: Route, byId: Map<string, Route>): Point[] {
+  if (!route.branchFrom) return route.points;
+  const parent = byId.get(route.branchFrom.routeId);
+  if (!parent) return route.points;
+  const anchor = parent.points[route.branchFrom.atIndex];
+  if (!anchor) return route.points;
+  return [anchor, ...route.points];
+}
 
 // === From topoAtom ===
 
@@ -12,7 +24,7 @@ export const annotationsAtom = atom((get) => get(topoAtom).annotations);
 export const annotationCountAtom = atom((get) => get(annotationsAtom).length);
 
 export const routeNumberRangeAtom = atom<{ min: number; max: number } | null>((get) => {
-  const routes = get(routesAtom);
+  const routes = get(routesAtom).filter((r) => r.branchFrom === undefined);
   if (routes.length === 0) return null;
   const nums = routes.map((r) => r.number);
   return { min: Math.min(...nums), max: Math.max(...nums) };
@@ -25,8 +37,9 @@ export const routeCountAtom = atom((get) => get(routesAtom).length);
 
 export const nextRouteNumberAtom = atom((get) => {
   const topo = get(topoAtom);
-  if (topo.routes.length === 0) return topo.startNumber;
-  return Math.max(...topo.routes.map((r) => r.number)) + 1;
+  const numbered = topo.routes.filter((r) => r.branchFrom === undefined);
+  if (numbered.length === 0) return topo.startNumber;
+  return Math.max(...numbered.map((r) => r.number)) + 1;
 });
 
 export const exportableAtom = atom((get) => get(imageLoadedAtom));
@@ -89,16 +102,19 @@ export const modeHintAtom = atom<ModeHint | null>((get) => {
   if (m.kind === "idle") return null;
   if (m.kind === "dragging") return null;
   const route = get(currentRouteAtom);
-  const num = route?.number ?? "?";
+  const isVariation = route?.branchFrom !== undefined;
+  const label = isVariation
+    ? route?.name?.trim() || "Variation"
+    : `Route ${route?.number ?? "?"}`;
   if (m.kind === "drawing") {
     return {
-      title: `Drawing Route ${num}`,
+      title: isVariation ? `Drawing ${label}` : `Drawing ${label}`,
       hints: ["click to place", "Enter to finish", "Esc to cancel"],
     };
   }
   // selected
   return {
-    title: `Route ${num}`,
+    title: label,
     hints: ["drag handles", "click line to insert", "⌫ to delete", "Esc to deselect"],
   };
 });

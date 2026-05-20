@@ -1,4 +1,5 @@
 import { PALETTE, Topo } from "../state/types";
+import { effectivePoints } from "../state/computed";
 import { catmullRomPath } from "./spline";
 
 export function buildSvgString(topo: Topo): string {
@@ -12,15 +13,19 @@ export function buildSvgString(topo: Topo): string {
   const startFontSize = baseSize * 0.025;
   const endR = baseSize * 0.010;
 
+  const byId = new Map(topo.routes.map((r) => [r.id, r]));
+
   const routes = topo.routes
     .map((r) => {
       const startColor = PALETTE[r.color];
-      const px = r.points.map((p) => ({ x: p.x * W, y: p.y * H }));
+      const eff = effectivePoints(r, byId);
+      const px = eff.map((p) => ({ x: p.x * W, y: p.y * H }));
       if (px.length === 0) return "";
       const path = catmullRomPath(px);
       const start = px[0];
       const end = px[px.length - 1];
       const numFill = r.color === "white" ? "#000" : "#fff";
+      const isVariation = r.branchFrom !== undefined;
       const parts: string[] = [];
       parts.push(
         `<path d="${path}" stroke="#fff" stroke-width="${lineWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
@@ -30,10 +35,14 @@ export function buildSvgString(topo: Topo): string {
           `<circle cx="${end.x}" cy="${end.y}" r="${endR}" fill="#fff"/>`,
         );
       }
-      parts.push(
-        `<circle cx="${start.x}" cy="${start.y}" r="${startR}" fill="${startColor}"/>`,
-        `<text x="${start.x}" y="${start.y}" font-size="${startFontSize}" fill="${numFill}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, monospace">${r.number}</text>`,
-      );
+      // Skip the numbered start chip for variations — their start is the parent's anchor,
+      // which the parent already renders.
+      if (!isVariation) {
+        parts.push(
+          `<circle cx="${start.x}" cy="${start.y}" r="${startR}" fill="${startColor}"/>`,
+          `<text x="${start.x}" y="${start.y}" font-size="${startFontSize}" fill="${numFill}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, monospace">${r.number}</text>`,
+        );
+      }
       return parts.join("");
     })
     .join("");

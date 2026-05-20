@@ -4,6 +4,7 @@ import { topoAtom, undoAtom, redoAtom } from "../state/atoms";
 import { canRedoAtom, canUndoAtom } from "../state/computed";
 import { setImageAtom, setTopoNameAtom } from "../state/actions";
 import { TopoPicker } from "./TopoPicker";
+import { SHORTCUTS } from "../input/shortcuts";
 
 async function readImageFile(file: File): Promise<{ dataUrl: string; width: number; height: number }> {
   // Decode with EXIF orientation applied so width/height match what the <img> displays.
@@ -89,7 +90,7 @@ export function TopBar() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 8 L7 4 V6 H12 A2 2 0 0 1 14 8 V11 H12 V8 H7 V10 Z" />
         </svg>
-        <span className="tip">Undo<kbd>⌘Z</kbd></span>
+        <span className="tip">Undo<kbd>{SHORTCUTS.undo.label}</kbd></span>
       </button>
       <button
         className={`icon-btn ${canRedo ? "" : "disabled"}`}
@@ -98,7 +99,7 @@ export function TopBar() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
           <path d="M13 8 L9 4 V6 H4 A2 2 0 0 0 2 8 V11 H4 V8 H9 V10 Z" />
         </svg>
-        <span className="tip">Redo<kbd>⌘⇧Z</kbd></span>
+        <span className="tip">Redo<kbd>{SHORTCUTS.redo.label}</kbd></span>
       </button>
 
       <div className="sep" />

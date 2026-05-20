@@ -431,6 +431,19 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
   flex-shrink: 0;
 }
+.var-chip {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--moss);
+  display: grid; place-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  border: 1.5px dashed var(--moss);
+  flex-shrink: 0;
+}
+.route-row.variation { padding-left: 18px; }
 .swatch {
   width: 10px; height: 10px;
   background: #fff;
@@ -819,4 +832,22 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
   stroke: var(--primary);
   opacity: 0.95;
   filter: drop-shadow(0 0 4px rgba(74,127,255,0.55));
+}
+.handle-branch {
+  fill: var(--bg-0);
+  stroke: var(--moss);
+}
+.handle-branch:hover {
+  fill: var(--moss);
+  stroke: #fff;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+}
+.branch-tip-box {
+  fill: #050402;
+  stroke: var(--border-2);
+  stroke-width: 0.5px;
+}
+.branch-tip-text {
+  fill: var(--fg-0);
+  user-select: none;
 }

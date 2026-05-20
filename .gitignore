@@ -27,3 +27,4 @@ test-results
 # Test screenshots
 halo-test.png
 halo-final.png
+.kata.local.toml

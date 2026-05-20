@@ -25,6 +25,10 @@ export function LeftRail() {
       setTool("annotate");
       return;
     }
+    if (next === "branch") {
+      setTool("branch");
+      return;
+    }
   };
 
   return (
@@ -65,6 +69,22 @@ export function LeftRail() {
         </svg>
         <span className="kbd">T</span>
         <span className="tip">Annotate &nbsp;T</span>
+      </button>
+      <button
+        className={`tool ${tool === "branch" ? "active" : ""}`}
+        onClick={() => onSelect("branch")}
+        disabled={!imageLoaded}
+      >
+        <svg viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 16 L9 11" />
+          <path d="M9 11 Q9 8 5 5" />
+          <path d="M9 11 Q9 8 13 5" />
+          <circle cx="9" cy="11" r="1.6" fill="currentColor" />
+          <circle cx="5" cy="4" r="1.2" />
+          <circle cx="13" cy="4" r="1.2" />
+        </svg>
+        <span className="kbd">B</span>
+        <span className="tip">Variation &nbsp;B</span>
       </button>
       <div className="rail-spacer" />
       <button className="tool" disabled>

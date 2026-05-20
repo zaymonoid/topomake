@@ -4,9 +4,11 @@ import { EditorMode } from "./mode";
 
 export type History = { past: Snapshot[]; future: Snapshot[] };
 
-export type Tool = "select" | "draw" | "annotate";
+export type Tool = "select" | "draw" | "annotate" | "branch";
 
 export type DragOverride = { routeId: string; pointIndex: number; point: Point } | null;
+
+export type HoveredHandle = { routeId: string; index: number } | null;
 
 export const newTopoId = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -23,6 +25,9 @@ export const currentTopoIdAtom = atom((get) => get(topoAtom).id);
 // Live position of the point being dragged. Stays null except during a drag.
 // Kept out of topoAtom so per-frame moves don't trigger app-wide re-renders.
 export const dragOverrideAtom = atom<DragOverride>(null);
+// Which handle the pointer is currently over while the branch tool is active.
+// Drives the "Add variation" tooltip in RouteShape.
+export const hoveredHandleAtom = atom<HoveredHandle>(null);
 
 // === History plumbing (write-only) ===
 //

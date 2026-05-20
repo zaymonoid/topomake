@@ -13,6 +13,8 @@ export type RouteFinishStyle = "circle" | "arrow";
 
 export type NumberingOrder = "created" | "ltr" | "rtl";
 
+export type BranchAnchor = { routeId: string; atIndex: number };
+
 export type Route = {
   id: string;
   number: number;
@@ -20,6 +22,10 @@ export type Route = {
   color: RouteColor;
   finishStyle: RouteFinishStyle;
   points: Point[]; // first = start, last = end, middle = intermediate control points
+  // When set, this route is a variation: it branches off `routeId` at the parent's
+  // points[atIndex]. `points[]` holds only the divergent points — the anchor is
+  // prepended at render time so the variation stays attached if the parent moves.
+  branchFrom?: BranchAnchor;
 };
 
 export type Annotation = {

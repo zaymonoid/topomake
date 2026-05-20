@@ -1,6 +1,6 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { topoAtom, currentToolAtom } from "../state/atoms";
+import { topoAtom, currentToolAtom, hoveredHandleAtom } from "../state/atoms";
 import {
   annotationsAtom,
   canvasCursorAtom,
@@ -38,6 +38,7 @@ export function Canvas() {
   const appendPoint = useSetAtom(appendPointAtom);
   const createAnnotation = useSetAtom(createAnnotationAtom);
   const setTool = useSetAtom(currentToolAtom);
+  const setHoveredHandle = useSetAtom(hoveredHandleAtom);
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +46,12 @@ export function Canvas() {
 
   const imageWidth = image?.width ?? 0;
   const imageHeight = image?.height ?? 0;
+
+  // Clear the branch-tool tooltip target whenever the user leaves the branch tool
+  // or enters drawing mode, so a stale tooltip never lingers.
+  useEffect(() => {
+    if (tool !== "branch" || drawingId !== null) setHoveredHandle(null);
+  }, [tool, drawingId, setHoveredHandle]);
 
   useEffect(() => {
     const el = innerRef.current;
@@ -87,7 +94,12 @@ export function Canvas() {
     }
   };
 
-  const annotateCursor = tool === "annotate" && !drawingId ? "crosshair" : cursor;
+  const customCursor =
+    tool === "annotate" && !drawingId
+      ? "crosshair"
+      : tool === "branch" && !drawingId
+        ? "copy"
+        : cursor;
 
   return (
     <main className="canvas">
@@ -103,7 +115,7 @@ export function Canvas() {
             className="overlay-svg"
             viewBox={`0 0 ${image.width} ${image.height}`}
             preserveAspectRatio="xMidYMid meet"
-            style={{ cursor: annotateCursor }}
+            style={{ cursor: customCursor }}
             onClick={onCanvasClick}
           >
             {routes.map((route) => (
