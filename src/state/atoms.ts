@@ -32,6 +32,7 @@ export const dragOverrideAtom = atom<DragOverride>(null);
 
 const toSnapshot = (t: Topo): Snapshot => ({
   startNumber: t.startNumber,
+  numberingOrder: t.numberingOrder,
   routes: t.routes,
   annotations: t.annotations,
 });

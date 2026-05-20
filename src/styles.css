@@ -341,6 +341,7 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
   border-radius: 8px;
   padding: 6px 8px;
 }
+.numbering + .numbering { margin-top: 6px; }
 .numbering .lbl {
   font-size: 12px;
   color: var(--fg-1);

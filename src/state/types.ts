@@ -11,6 +11,8 @@ export const PALETTE: Record<RouteColor, string> = {
 
 export type RouteFinishStyle = "circle" | "arrow";
 
+export type NumberingOrder = "created" | "ltr" | "rtl";
+
 export type Route = {
   id: string;
   number: number;
@@ -35,18 +37,20 @@ export type Topo = {
   image: Image | null;
   // History-tracked fields (see Snapshot below):
   startNumber: number;
+  numberingOrder: NumberingOrder;
   routes: Route[];
   annotations: Annotation[];
 };
 
 // The subset of Topo that participates in undo/redo.
-export type Snapshot = Pick<Topo, "startNumber" | "routes" | "annotations">;
+export type Snapshot = Pick<Topo, "startNumber" | "numberingOrder" | "routes" | "annotations">;
 
 export const emptyTopo = (id: string): Topo => ({
   id,
   name: "Untitled Topo",
   image: null,
   startNumber: 1,
+  numberingOrder: "created",
   routes: [],
   annotations: [],
 });

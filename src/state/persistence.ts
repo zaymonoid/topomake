@@ -37,6 +37,7 @@ const topoFromRecord = (record: StoredTopo): Topo => ({
   name: record.name,
   image: record.image,
   startNumber: record.snapshot.startNumber,
+  numberingOrder: record.snapshot.numberingOrder ?? "created",
   routes: record.snapshot.routes,
   annotations: record.snapshot.annotations,
 });
@@ -94,6 +95,7 @@ export function usePersistence() {
         image: topo.image,
         snapshot: {
           startNumber: topo.startNumber,
+          numberingOrder: topo.numberingOrder,
           routes: topo.routes,
           annotations: topo.annotations,
         },

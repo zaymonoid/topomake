@@ -10,6 +10,7 @@ import {
 } from "./atoms";
 import {
   Annotation,
+  NumberingOrder,
   Point,
   Route,
   RouteColor,
@@ -21,17 +22,49 @@ import { nextRouteNumberAtom } from "./computed";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+// Reassigns `number` on each route per the chosen order.
+// "created" -> unchanged. "ltr" / "rtl" -> stable sort by start.x, assign from startNumber.
+// Routes without points keep their relative order at the end of the sequence.
+function applyNumbering(
+  routes: Route[],
+  startNumber: number,
+  order: NumberingOrder,
+): Route[] {
+  if (order === "created") return routes;
+  const decorated = routes.map((r, i) => ({ r, i }));
+  const withPoints = decorated.filter((d) => d.r.points.length > 0);
+  const withoutPoints = decorated.filter((d) => d.r.points.length === 0);
+  withPoints.sort((a, b) => {
+    const dx = a.r.points[0].x - b.r.points[0].x;
+    if (dx !== 0) return order === "ltr" ? dx : -dx;
+    return a.i - b.i;
+  });
+  const ordered = [...withPoints, ...withoutPoints].map((d) => d.r);
+  return ordered.map((r, i) => ({ ...r, number: startNumber + i }));
+}
+
+const numbered = (t: Topo, routes: Route[]): Route[] =>
+  applyNumbering(routes, t.startNumber, t.numberingOrder);
+
 const snapshotOf = (t: Topo): Snapshot => ({
   startNumber: t.startNumber,
+  numberingOrder: t.numberingOrder,
   routes: t.routes,
   annotations: t.annotations,
 });
 
-const withRoutePatched = (t: Topo, id: string, patch: Partial<Route>): Snapshot => ({
+const withRoutes = (t: Topo, routes: Route[]): Snapshot => ({
   startNumber: t.startNumber,
-  routes: t.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+  numberingOrder: t.numberingOrder,
+  routes,
   annotations: t.annotations,
 });
+
+const withRoutePatched = (t: Topo, id: string, patch: Partial<Route>): Snapshot =>
+  withRoutes(
+    t,
+    t.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+  );
 
 const withAnnotationPatched = (
   t: Topo,
@@ -39,6 +72,7 @@ const withAnnotationPatched = (
   patch: Partial<Annotation>,
 ): Snapshot => ({
   startNumber: t.startNumber,
+  numberingOrder: t.numberingOrder,
   routes: t.routes,
   annotations: t.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
 });
@@ -72,11 +106,30 @@ export const setStartNumberAtom = atom(null, (get, set, startNumber: number) => 
     set(commitAtom, { ...snapshotOf(topo), startNumber });
     return;
   }
-  const minNum = Math.min(...topo.routes.map((r) => r.number));
-  const delta = startNumber - minNum;
+  // In spatial modes, re-derive numbers from the new startNumber by position.
+  // In "created" mode, shift each existing number by the same delta to preserve gaps.
+  const routes =
+    topo.numberingOrder === "created"
+      ? (() => {
+          const minNum = Math.min(...topo.routes.map((r) => r.number));
+          const delta = startNumber - minNum;
+          return topo.routes.map((r) => ({ ...r, number: r.number + delta }));
+        })()
+      : applyNumbering(topo.routes, startNumber, topo.numberingOrder);
   set(commitAtom, {
     startNumber,
-    routes: topo.routes.map((r) => ({ ...r, number: r.number + delta })),
+    numberingOrder: topo.numberingOrder,
+    routes,
+    annotations: topo.annotations,
+  });
+});
+
+export const setNumberingOrderAtom = atom(null, (get, set, order: NumberingOrder) => {
+  const topo = get(topoAtom);
+  set(commitAtom, {
+    startNumber: topo.startNumber,
+    numberingOrder: order,
+    routes: applyNumbering(topo.routes, topo.startNumber, order),
     annotations: topo.annotations,
   });
 });
@@ -94,21 +147,13 @@ export const createRouteAtom = atom(null, (get, set) => {
     finishStyle: "circle",
     points: [],
   };
-  set(commitAtom, {
-    startNumber: topo.startNumber,
-    routes: [...topo.routes, route],
-    annotations: topo.annotations,
-  });
+  set(commitAtom, withRoutes(topo, numbered(topo, [...topo.routes, route])));
   set(editorModeAtom, { kind: "drawing", routeId: id });
 });
 
 export const deleteRouteAtom = atom(null, (get, set, id: string) => {
   const topo = get(topoAtom);
-  set(commitAtom, {
-    startNumber: topo.startNumber,
-    routes: topo.routes.filter((r) => r.id !== id),
-    annotations: topo.annotations,
-  });
+  set(commitAtom, withRoutes(topo, numbered(topo, topo.routes.filter((r) => r.id !== id))));
   const mode = get(editorModeAtom);
   if (mode.kind !== "empty" && "routeId" in mode && mode.routeId === id) {
     set(editorModeAtom, { kind: "idle" });
@@ -175,7 +220,12 @@ export const appendPointAtom = atom(null, (get, set, p: Point) => {
   const topo = get(topoAtom);
   const route = topo.routes.find((r) => r.id === m.routeId);
   if (!route) return;
-  set(commitAtom, withRoutePatched(topo, m.routeId, { points: [...route.points, p] }));
+  // Re-number on the first point (route gains a spatial anchor). Later points don't move the start.
+  const wasFirstPoint = route.points.length === 0;
+  const updated = topo.routes.map((r) =>
+    r.id === m.routeId ? { ...r, points: [...r.points, p] } : r,
+  );
+  set(commitAtom, withRoutes(topo, wasFirstPoint ? numbered(topo, updated) : updated));
 });
 
 // === Drag — target lives in the mode itself ===
@@ -203,14 +253,14 @@ export const endDragAtom = atom(null, (get, set) => {
   const override = get(dragOverrideAtom);
   if (override) {
     const topo = get(topoAtom);
-    set(topoAtom, {
-      ...topo,
-      routes: topo.routes.map((r) =>
-        r.id === override.routeId
-          ? { ...r, points: r.points.map((p, i) => (i === override.pointIndex ? override.point : p)) }
-          : r,
-      ),
-    });
+    const updated = topo.routes.map((r) =>
+      r.id === override.routeId
+        ? { ...r, points: r.points.map((p, i) => (i === override.pointIndex ? override.point : p)) }
+        : r,
+    );
+    // Re-number only when the start point moved.
+    const routes = override.pointIndex === 0 ? numbered(topo, updated) : updated;
+    set(topoAtom, { ...topo, routes });
     set(dragOverrideAtom, null);
   }
   set(editorModeAtom, { kind: "selected", routeId: m.routeId });
@@ -226,7 +276,12 @@ export const insertPointAtom = atom(
     if (!route) return;
     const points = [...route.points];
     points.splice(payload.index, 0, payload.point);
-    set(commitAtom, withRoutePatched(topo, payload.routeId, { points }));
+    const updated = topo.routes.map((r) =>
+      r.id === payload.routeId ? { ...r, points } : r,
+    );
+    // Re-number only when the start point changed (inserting at index 0).
+    const routes = payload.index === 0 ? numbered(topo, updated) : updated;
+    set(commitAtom, withRoutes(topo, routes));
   },
 );
 
@@ -237,7 +292,12 @@ export const deletePointAtom = atom(
     const route = topo.routes.find((r) => r.id === payload.routeId);
     if (!route) return;
     const points = route.points.filter((_, i) => i !== payload.index);
-    set(commitAtom, withRoutePatched(topo, payload.routeId, { points }));
+    const updated = topo.routes.map((r) =>
+      r.id === payload.routeId ? { ...r, points } : r,
+    );
+    // Re-number only when the start point changed (removing index 0).
+    const routes = payload.index === 0 ? numbered(topo, updated) : updated;
+    set(commitAtom, withRoutes(topo, routes));
   },
 );
 
@@ -254,6 +314,7 @@ export const createAnnotationAtom = atom(null, (get, set, payload: { x: number; 
   };
   set(commitAtom, {
     startNumber: topo.startNumber,
+    numberingOrder: topo.numberingOrder,
     routes: topo.routes,
     annotations: [...topo.annotations, annotation],
   });
@@ -285,6 +346,7 @@ export const deleteAnnotationAtom = atom(null, (get, set, id: string) => {
   const topo = get(topoAtom);
   set(commitAtom, {
     startNumber: topo.startNumber,
+    numberingOrder: topo.numberingOrder,
     routes: topo.routes,
     annotations: topo.annotations.filter((a) => a.id !== id),
   });

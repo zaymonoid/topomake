@@ -17,12 +17,13 @@ import {
   deleteAnnotationAtom,
   deleteRouteAtom,
   selectRouteAtom,
+  setNumberingOrderAtom,
   setRouteColorAtom,
   setRouteFinishStyleAtom,
   setRouteNameAtom,
   setStartNumberAtom,
 } from "../state/actions";
-import { PALETTE, RouteColor, RouteFinishStyle } from "../state/types";
+import { NumberingOrder, PALETTE, RouteColor, RouteFinishStyle } from "../state/types";
 
 const COLORS: RouteColor[] = ["white", "blue", "red", "yellow"];
 
@@ -50,6 +51,7 @@ export function SidePanel() {
   const selectedAnnId = useAtomValue(selectedAnnotationIdAtom);
 
   const setStartNumber = useSetAtom(setStartNumberAtom);
+  const setNumberingOrder = useSetAtom(setNumberingOrderAtom);
   const createRoute = useSetAtom(createRouteAtom);
   const deleteRoute = useSetAtom(deleteRouteAtom);
   const selectRoute = useSetAtom(selectRouteAtom);
@@ -91,6 +93,32 @@ export function SidePanel() {
               }}
             />
             <button onClick={() => setStartNumber(topo.startNumber + 1)}>+</button>
+          </div>
+        </div>
+        <div className="numbering">
+          <div className="lbl">Order</div>
+          <div className="select-wrap">
+            <select
+              className="ts-select"
+              value={topo.numberingOrder}
+              onChange={(e) => setNumberingOrder(e.target.value as NumberingOrder)}
+            >
+              <option value="created">Order created</option>
+              <option value="ltr">Left → Right</option>
+              <option value="rtl">Right → Left</option>
+            </select>
+            <svg
+              className="select-chev"
+              viewBox="0 0 12 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 5 L6 8 L9 5" />
+            </svg>
           </div>
         </div>
       </div>
