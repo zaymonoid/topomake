@@ -1,9 +1,24 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { topoAtom, currentToolAtom, selectedAnnotationIdAtom } from "../state/atoms";
+import { SHORTCUTS } from "../input/shortcuts";
 import {
-  annotationsAtom,
+  createRouteAtom,
+  deleteAnnotationAtom,
+  deleteRouteAtom,
+  selectRouteAtom,
+  setAnnotationColorAtom,
+  setLineWidthAtom,
+  setNumberingOrderAtom,
+  setNumberSizeAtom,
+  setRouteColorAtom,
+  setRouteFinishStyleAtom,
+  setRouteNameAtom,
+  setStartNumberAtom,
+} from "../state/actions";
+import { currentToolAtom, selectedAnnotationIdAtom, topoAtom } from "../state/atoms";
+import {
   annotationCountAtom,
+  annotationsAtom,
   canAddRouteAtom,
   currentRouteAtom,
   drawingRouteIdAtom,
@@ -13,27 +28,25 @@ import {
   selectedRouteIdAtom,
 } from "../state/computed";
 import {
-  createRouteAtom,
-  deleteAnnotationAtom,
-  deleteRouteAtom,
-  selectRouteAtom,
-  setAnnotationColorAtom,
-  setLineWidthAtom,
-  setNumberSizeAtom,
-  setNumberingOrderAtom,
-  setRouteColorAtom,
-  setRouteFinishStyleAtom,
-  setRouteNameAtom,
-  setStartNumberAtom,
-} from "../state/actions";
-import { NumberingOrder, PALETTE, RouteColor, RouteFinishStyle } from "../state/types";
-import { SHORTCUTS } from "../input/shortcuts";
+  type NumberingOrder,
+  PALETTE,
+  type RouteColor,
+  type RouteFinishStyle,
+} from "../state/types";
 
 const COLORS: RouteColor[] = ["white", "blue", "red", "yellow"];
 
 function TrashIcon() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M3 4 H13 M6 4 V2.5 H10 V4 M4.5 4 V13 H11.5 V4 M7 6.5 V11 M9 6.5 V11" />
     </svg>
   );
@@ -90,15 +103,27 @@ export function SidePanel() {
             <small>{rangeLabel}</small>
           </div>
           <div className="stepper">
-            <button onClick={() => setStartNumber(Math.max(1, topo.startNumber - 1))}>−</button>
+            <button
+              type="button"
+              onClick={() => setStartNumber(Math.max(1, topo.startNumber - 1))}
+              aria-label="Decrease"
+            >
+              −
+            </button>
             <input
               value={topo.startNumber}
               onChange={(e) => {
                 const n = parseInt(e.target.value, 10);
-                if (!isNaN(n)) setStartNumber(n);
+                if (!Number.isNaN(n)) setStartNumber(n);
               }}
             />
-            <button onClick={() => setStartNumber(topo.startNumber + 1)}>+</button>
+            <button
+              type="button"
+              onClick={() => setStartNumber(topo.startNumber + 1)}
+              aria-label="Increase"
+            >
+              +
+            </button>
           </div>
         </div>
         <div className="numbering">
@@ -174,14 +199,25 @@ export function SidePanel() {
             <div className="panel-h-actions">
               <span className="count">{routeCount}</span>
               <button
+                type="button"
                 className="hdr-add"
                 disabled={!canAdd}
                 onClick={() => createRoute()}
+                aria-label="New route"
               >
-                <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+                <svg
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
                   <path d="M7 3 V11 M3 7 H11" />
                 </svg>
-                <span className="tip">New route<kbd>{SHORTCUTS.draw.label}</kbd></span>
+                <span className="tip">
+                  New route<kbd>{SHORTCUTS.draw.label}</kbd>
+                </span>
               </button>
             </div>
           </div>
@@ -192,20 +228,28 @@ export function SidePanel() {
           {routes.map((r) => {
             const variation = r.branchFrom !== undefined;
             return (
+              // biome-ignore lint/a11y/useSemanticElements: contains a nested delete <button>, can't be a button
               <div
                 key={r.id}
                 className={`route-row ${r.id === selectedId ? "selected" : ""} ${variation ? "variation" : ""}`}
                 onClick={() => selectRoute(r.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    selectRoute(r.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 {variation ? (
-                  <span className="var-chip" title="Variation">↳</span>
+                  <span className="var-chip" title="Variation">
+                    ↳
+                  </span>
                 ) : (
                   <span className="num-chip">{r.number}</span>
                 )}
-                <span
-                  className="swatch"
-                  style={{ background: PALETTE[r.color] }}
-                />
+                <span className="swatch" style={{ background: PALETTE[r.color] }} />
                 <span className="route-name">
                   {r.name || (
                     <span className="placeholder">
@@ -214,12 +258,14 @@ export function SidePanel() {
                   )}
                 </span>
                 <button
+                  type="button"
                   className={`row-action ${r.id === selectedId ? "always" : ""}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteRoute(r.id);
                   }}
                   title="Delete route"
+                  aria-label="Delete route"
                 >
                   <TrashIcon />
                 </button>
@@ -236,33 +282,57 @@ export function SidePanel() {
           <div className="panel-h-actions">
             <span className="count">{annCount}</span>
             <button
+              type="button"
               className="hdr-add"
               onClick={() => setTool("annotate")}
+              aria-label="Annotate"
             >
-              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round">
+              <svg
+                viewBox="0 0 14 14"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
                 <path d="M7 3 V11 M3 7 H11" />
               </svg>
-              <span className="tip">Annotate<kbd>{SHORTCUTS.annotate.label}</kbd></span>
+              <span className="tip">
+                Annotate<kbd>{SHORTCUTS.annotate.label}</kbd>
+              </span>
             </button>
           </div>
         </div>
         {annotations.length === 0 ? (
-          <div className="ann-list-empty">No annotations. Press {SHORTCUTS.annotate.label} then click the photo.</div>
+          <div className="ann-list-empty">
+            No annotations. Press {SHORTCUTS.annotate.label} then click the photo.
+          </div>
         ) : (
           <div className="ann-list">
             {annotations.map((a) => (
+              // biome-ignore lint/a11y/useSemanticElements: contains a nested delete <button>, can't be a button
               <div
                 key={a.id}
                 className={`ann-item ${a.id === selectedAnnId ? "selected" : ""}`}
                 onClick={() => setSelectedAnnId(a.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedAnnId(a.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <span className="ann-bullet" />
                 <span className="ann-text">
                   {a.text || <span className="placeholder">empty annotation</span>}
                 </span>
                 <button
+                  type="button"
                   className="row-action always"
                   title="Delete annotation"
+                  aria-label="Delete annotation"
                   onClick={(e) => {
                     e.stopPropagation();
                     deleteAnnotation(a.id);
@@ -286,9 +356,11 @@ export function SidePanel() {
             />
             <span className="ann-inspector-label">Annotation</span>
             <button
+              type="button"
               className="icon-btn icon-btn-danger"
               style={{ width: 24, height: 24, marginLeft: "auto" }}
               title="Delete annotation"
+              aria-label="Delete annotation"
               onClick={() => deleteAnnotation(selectedAnnotation.id)}
             >
               <TrashIcon />
@@ -300,12 +372,11 @@ export function SidePanel() {
               <div className="color-swatches">
                 {COLORS.map((c) => (
                   <button
+                    type="button"
                     key={c}
                     className={`color-swatch ${(selectedAnnotation.color ?? "white") === c ? "selected" : ""}`}
                     style={{ background: PALETTE[c] }}
-                    onClick={() =>
-                      setAnnotationColor({ id: selectedAnnotation.id, color: c })
-                    }
+                    onClick={() => setAnnotationColor({ id: selectedAnnotation.id, color: c })}
                     aria-label={c}
                   />
                 ))}
@@ -320,7 +391,9 @@ export function SidePanel() {
         <div className="inspector">
           <div className="inspector-h">
             {selected.branchFrom !== undefined ? (
-              <span className="var-chip" title="Variation">↳</span>
+              <span className="var-chip" title="Variation">
+                ↳
+              </span>
             ) : (
               <span className="num-chip">{selected.number}</span>
             )}
@@ -329,25 +402,46 @@ export function SidePanel() {
               className="name-edit"
               value={selected.name}
               onChange={(e) => setName({ id: selected.id, name: e.target.value })}
-              placeholder={selected.branchFrom !== undefined ? "unnamed variation" : "unnamed route"}
+              placeholder={
+                selected.branchFrom !== undefined ? "unnamed variation" : "unnamed route"
+              }
             />
             <button
+              type="button"
               className="icon-btn"
               style={{ width: 24, height: 24 }}
               title="Rename"
+              aria-label="Rename"
               onClick={() => nameRef.current?.focus()}
             >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                aria-hidden="true"
+              >
                 <path d="M11 3 L13 5 L7 11 L4 12 L5 9 Z" />
               </svg>
             </button>
             <button
+              type="button"
               className="icon-btn icon-btn-danger"
               style={{ width: 24, height: 24 }}
               title="Delete route"
+              aria-label="Delete route"
               onClick={() => deleteRoute(selected.id)}
             >
-              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M3 4 H13 M6 4 V2.5 H10 V4 M4.5 4 V13 H11.5 V4 M7 6.5 V11 M9 6.5 V11" />
               </svg>
             </button>
@@ -359,6 +453,7 @@ export function SidePanel() {
               <div className="color-swatches">
                 {COLORS.map((c) => (
                   <button
+                    type="button"
                     key={c}
                     className={`color-swatch ${selected.color === c ? "selected" : ""}`}
                     style={{ background: PALETTE[c] }}

@@ -1,22 +1,16 @@
 import { atom, useStore } from "jotai";
 import { useEffect } from "react";
+import { deleteTopo, listTopos, loadTopo, type StoredTopo, saveTopo } from "../util/storage";
 import {
-  topoAtom,
-  historyAtom,
-  editorModeAtom,
   dragOverrideAtom,
-  selectedAnnotationIdAtom,
+  editorModeAtom,
+  type History,
+  historyAtom,
   newTopoId,
-  History,
+  selectedAnnotationIdAtom,
+  topoAtom,
 } from "./atoms";
-import { emptyTopo, Topo } from "./types";
-import {
-  saveTopo,
-  loadTopo,
-  listTopos,
-  deleteTopo,
-  StoredTopo,
-} from "../util/storage";
+import { emptyTopo, type Topo } from "./types";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -29,8 +23,9 @@ const trimHistory = (h: History): History => ({
   future: h.future.slice(0, HISTORY_CAP),
 });
 
-const editorModeForTopo = (topo: Topo) =>
-  ({ kind: topo.image ? ("idle" as const) : ("empty" as const) });
+const editorModeForTopo = (topo: Topo) => ({
+  kind: topo.image ? ("idle" as const) : ("empty" as const),
+});
 
 const topoFromRecord = (record: StoredTopo): Topo => ({
   id: record.id,

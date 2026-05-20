@@ -1,8 +1,8 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useButtonPressed } from "use-control";
-import { inputMap } from "../inputMap";
-import { deselectAtom, deleteRouteAtom } from "../../state/actions";
+import { deleteRouteAtom, deselectAtom } from "../../state/actions";
 import { selectedRouteIdAtom } from "../../state/computed";
+import { inputMap } from "../inputMap";
 import { isTypingInField } from "../useFocusGuard";
 
 export function SelectedShortcuts() {

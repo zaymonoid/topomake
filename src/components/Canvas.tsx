@@ -1,21 +1,17 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { topoAtom, currentToolAtom, hoveredHandleAtom } from "../state/atoms";
+import { appendPointAtom, createAnnotationAtom, setImageAtom } from "../state/actions";
+import { currentToolAtom, hoveredHandleAtom, topoAtom } from "../state/atoms";
 import {
   annotationsAtom,
   canvasCursorAtom,
   drawingRouteIdAtom,
   routesAtom,
 } from "../state/computed";
-import {
-  appendPointAtom,
-  createAnnotationAtom,
-  setImageAtom,
-} from "../state/actions";
-import { Point } from "../state/types";
-import { RouteShape } from "./RouteShape";
-import { AnnotationPin } from "./AnnotationPin";
+import type { Point } from "../state/types";
 import { readImageFile } from "../util/image";
+import { AnnotationPin } from "./AnnotationPin";
+import { RouteShape } from "./RouteShape";
 
 function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, h: number): Point {
   const rect = svg.getBoundingClientRect();
@@ -119,6 +115,7 @@ export function Canvas() {
   if (!image) {
     return (
       <main className="canvas">
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: drop target for file uploads */}
         <div
           ref={innerRef}
           className="canvas-inner"
@@ -128,7 +125,15 @@ export function Canvas() {
         >
           <div className={`canvas-dropzone ${isDragOver ? "is-drag-over" : ""}`}>
             <div className="dz-icon" aria-hidden="true">
-              <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                viewBox="0 0 48 48"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M14 30 A8 8 0 1 1 22 18 A10 10 0 0 1 41 22 A7 7 0 0 1 38 35" />
                 <path d="M24 38 V22 M18 28 L24 22 L30 28" />
               </svg>
@@ -178,6 +183,7 @@ export function Canvas() {
 
   return (
     <main className="canvas">
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drop target for file uploads */}
       <div
         ref={innerRef}
         className={`canvas-inner ${isDragOver ? "is-drag-over" : ""}`}
@@ -191,6 +197,7 @@ export function Canvas() {
           style={stageSize ? { width: stageSize.w, height: stageSize.h } : { visibility: "hidden" }}
         >
           <img className="photo" src={image.dataUrl} alt="" draggable={false} />
+          {/* biome-ignore lint/a11y/useKeyWithClickEvents: drawing surface accepts pointer input only */}
           <svg
             ref={svgRef}
             className="overlay-svg"
@@ -198,6 +205,7 @@ export function Canvas() {
             preserveAspectRatio="xMidYMid meet"
             style={{ cursor: customCursor }}
             onClick={onCanvasClick}
+            aria-label="Topo drawing surface"
           >
             {routes.map((route) => (
               <RouteShape

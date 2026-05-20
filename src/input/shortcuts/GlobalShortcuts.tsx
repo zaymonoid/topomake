@@ -1,11 +1,11 @@
-import { useEffect } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
+import { useEffect } from "react";
 import { keyDown$ } from "use-control/lib/input/keyboard";
-import { undoAtom, redoAtom, currentToolAtom, editorModeAtom } from "../../state/atoms";
-import { canAddRouteAtom, canRedoAtom, canUndoAtom, imageLoadedAtom } from "../../state/computed";
 import { createRouteAtom, deselectAtom, extendRouteAtom } from "../../state/actions";
-import { isTypingInField } from "../useFocusGuard";
+import { currentToolAtom, editorModeAtom, redoAtom, undoAtom } from "../../state/atoms";
+import { canAddRouteAtom, canRedoAtom, canUndoAtom, imageLoadedAtom } from "../../state/computed";
 import { SHORTCUTS } from "../shortcuts";
+import { isTypingInField } from "../useFocusGuard";
 
 // Undo/redo need modifier-key inspection, which the `keycode`-based hooks don't expose.
 // Subscribe to use-control's raw keyDown$ observable so we get the underlying KeyboardEvent.
@@ -64,7 +64,19 @@ export function GlobalShortcuts() {
       }
     });
     return () => sub.unsubscribe();
-  }, [undo, redo, canUndo, canRedo, canAddRoute, imageLoaded, setTool, createRoute, deselect, extendRoute, editorMode]);
+  }, [
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    canAddRoute,
+    imageLoaded,
+    setTool,
+    createRoute,
+    deselect,
+    extendRoute,
+    editorMode,
+  ]);
 
   return null;
 }

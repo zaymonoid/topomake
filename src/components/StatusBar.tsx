@@ -1,7 +1,7 @@
 import { useAtomValue } from "jotai";
 import { currentToolAtom, editorModeAtom } from "../state/atoms";
 import { currentRouteAtom, modeHintAtom } from "../state/computed";
-import { saveStatusAtom, SaveStatus } from "../state/persistence";
+import { type SaveStatus, saveStatusAtom } from "../state/persistence";
 
 const TOOL_LABEL: Record<string, string> = {
   select: "Select",
@@ -42,14 +42,18 @@ export function StatusBar() {
     <footer className="statusbar">
       <span className="mode-pill">{TOOL_LABEL[tool] ?? tool}</span>
       {route ? (
-        <span>{routeLabel} {routeIdentifier}</span>
+        <span>
+          {routeLabel} {routeIdentifier}
+        </span>
       ) : hint?.title ? (
         <span>{hint.title}</span>
       ) : null}
       {hints.length > 0 && (
         <span className="hints">
-          {hints.map((h, i) => (
-            <span className="hint" key={i}>{h}</span>
+          {hints.map((h) => (
+            <span className="hint" key={h}>
+              {h}
+            </span>
           ))}
         </span>
       )}

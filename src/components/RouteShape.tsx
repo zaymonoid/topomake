@@ -1,22 +1,22 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
 import {
-  selectedRouteIdAtom,
-  drawingRouteIdAtom,
-  dragOverrideForRouteAtomFamily,
-  routeAtomFamily,
-} from "../state/computed";
-import {
   beginDragAtom,
-  setDragPointAtom,
+  branchRouteAtom,
+  deletePointAtom,
   endDragAtom,
   insertPointAtom,
-  deletePointAtom,
   selectRouteAtom,
-  branchRouteAtom,
+  setDragPointAtom,
 } from "../state/actions";
 import { currentToolAtom, hoveredHandleAtom, topoAtom } from "../state/atoms";
-import { PALETTE, Point, Route } from "../state/types";
+import {
+  dragOverrideForRouteAtomFamily,
+  drawingRouteIdAtom,
+  routeAtomFamily,
+  selectedRouteIdAtom,
+} from "../state/computed";
+import { PALETTE, type Point, type Route } from "../state/types";
 import { catmullRomPath } from "../util/spline";
 
 type Props = {
@@ -26,7 +26,12 @@ type Props = {
   svgRef: React.RefObject<SVGSVGElement>;
 };
 
-function clientToNormalized(e: { clientX: number; clientY: number }, rect: DOMRect, w: number, h: number): Point {
+function clientToNormalized(
+  e: { clientX: number; clientY: number },
+  rect: DOMRect,
+  w: number,
+  h: number,
+): Point {
   const scale = Math.min(rect.width / w, rect.height / h);
   const renderedW = w * scale;
   const renderedH = h * scale;
@@ -78,10 +83,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   let anchor: Point | null = null;
   if (route.branchFrom && parentRoute) {
     const at = route.branchFrom.atIndex;
-    if (
-      parentDragOverride &&
-      parentDragOverride.pointIndex === at
-    ) {
+    if (parentDragOverride && parentDragOverride.pointIndex === at) {
       anchor = parentDragOverride.point;
     } else {
       anchor = parentRoute.points[at] ?? null;
@@ -132,7 +134,12 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
       return;
     }
     if (isDrawing || !svgRef.current) return;
-    const np = clientToNormalized(e, svgRef.current.getBoundingClientRect(), imageWidth, imageHeight);
+    const np = clientToNormalized(
+      e,
+      svgRef.current.getBoundingClientRect(),
+      imageWidth,
+      imageHeight,
+    );
     const clickPx = { x: np.x * imageWidth, y: np.y * imageHeight };
     let bestSegIdx = 0;
     let bestDist = Infinity;
@@ -220,8 +227,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     branchToolActive && hoveredHandle && hoveredHandle.routeId === route.id
       ? hoveredHandle.index
       : null;
-  const hoveredPx =
-    hoveredOnThis !== null ? ownPixelPoints[hoveredOnThis] ?? null : null;
+  const hoveredPx = hoveredOnThis !== null ? (ownPixelPoints[hoveredOnThis] ?? null) : null;
   const tooltipText = "Add variation";
   const tooltipTextWidth = tooltipText.length * tooltipFontSize * 0.6;
   const tooltipBoxW = tooltipTextWidth + tooltipPadX * 2;
@@ -232,6 +238,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
       {/* Wide invisible hit target — disabled in branch mode so it doesn't
           shield the handles below from pointer events. */}
       {pathD && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: SVG hit path for route selection
         <path
           d={pathD}
           stroke="transparent"
@@ -246,13 +253,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
       )}
 
       {/* Selection glow underneath */}
-      {isSelected && pathD && (
-        <path
-          className="selected-glow"
-          d={pathD}
-          strokeWidth={glowWidth}
-        />
-      )}
+      {isSelected && pathD && <path className="selected-glow" d={pathD} strokeWidth={glowWidth} />}
 
       {/* Visible white line */}
       {pathD && (
@@ -279,77 +280,79 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
 
       {/* End marker */}
       {end && pixelPoints.length >= 2 && route.finishStyle === "circle" && (
-        <circle
-          cx={end.x}
-          cy={end.y}
-          r={endR}
-          fill="#fff"
-          pointerEvents="none"
-        />
+        <circle cx={end.x} cy={end.y} r={endR} fill="#fff" pointerEvents="none" />
       )}
-      {end && pixelPoints.length >= 2 && route.finishStyle === "arrow" && (() => {
-        const prev = pixelPoints[pixelPoints.length - 2];
-        const dx = end.x - prev.x;
-        const dy = end.y - prev.y;
-        const len = Math.hypot(dx, dy) || 1;
-        const ux = dx / len;
-        const uy = dy / len;
-        const size = baseSize * 0.016;
-        const tipX = end.x;
-        const tipY = end.y;
-        const cos = Math.cos((35 * Math.PI) / 180);
-        const sin = Math.sin((35 * Math.PI) / 180);
-        const leftX = tipX - size * (ux * cos - uy * sin);
-        const leftY = tipY - size * (uy * cos + ux * sin);
-        const rightX = tipX - size * (ux * cos + uy * sin);
-        const rightY = tipY - size * (uy * cos - ux * sin);
-        return (
-          <path
-            d={`M ${leftX} ${leftY} L ${tipX} ${tipY} L ${rightX} ${rightY}`}
-            fill="none"
-            stroke="#fff"
-            strokeWidth={lineWidth}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            pointerEvents="none"
-          />
-        );
-      })()}
+      {end &&
+        pixelPoints.length >= 2 &&
+        route.finishStyle === "arrow" &&
+        (() => {
+          const prev = pixelPoints[pixelPoints.length - 2];
+          const dx = end.x - prev.x;
+          const dy = end.y - prev.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          const size = baseSize * 0.016;
+          const tipX = end.x;
+          const tipY = end.y;
+          const cos = Math.cos((35 * Math.PI) / 180);
+          const sin = Math.sin((35 * Math.PI) / 180);
+          const leftX = tipX - size * (ux * cos - uy * sin);
+          const leftY = tipY - size * (uy * cos + ux * sin);
+          const rightX = tipX - size * (ux * cos + uy * sin);
+          const rightY = tipY - size * (uy * cos - ux * sin);
+          return (
+            <path
+              d={`M ${leftX} ${leftY} L ${tipX} ${tipY} L ${rightX} ${rightY}`}
+              fill="none"
+              stroke="#fff"
+              strokeWidth={lineWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              pointerEvents="none"
+            />
+          );
+        })()}
 
       {/* Anchor handle for a selected variation — drags the PARENT's anchor
           point. Rendered only when selected (not in branch-tool mode) so it
           doesn't compete with the parent's branch-tool handles. */}
-      {isSelected && !branchToolActive && isVariation && anchor && route.branchFrom && (() => {
-        const ax = anchor.x * imageWidth;
-        const ay = anchor.y * imageHeight;
-        return (
-          <g>
-            <circle
-              cx={ax}
-              cy={ay}
-              r={handleMidR * 1.2}
-              fill="transparent"
-              pointerEvents="all"
-              style={{ cursor: "grab" }}
-              onPointerDown={onAnchorHandleDown}
-              onPointerMove={onHandleMove}
-              onPointerUp={onHandleUp}
-              onPointerCancel={onHandleUp}
-            />
-            <circle
-              className="handle-mid"
-              cx={ax}
-              cy={ay}
-              r={handleMidR}
-              strokeWidth={handleStroke}
-              onPointerDown={onAnchorHandleDown}
-              onPointerMove={onHandleMove}
-              onPointerUp={onHandleUp}
-              onPointerCancel={onHandleUp}
-            />
-          </g>
-        );
-      })()}
+      {isSelected &&
+        !branchToolActive &&
+        isVariation &&
+        anchor &&
+        route.branchFrom &&
+        (() => {
+          const ax = anchor.x * imageWidth;
+          const ay = anchor.y * imageHeight;
+          return (
+            <g>
+              <circle
+                cx={ax}
+                cy={ay}
+                r={handleMidR * 1.2}
+                fill="transparent"
+                pointerEvents="all"
+                style={{ cursor: "grab" }}
+                onPointerDown={onAnchorHandleDown}
+                onPointerMove={onHandleMove}
+                onPointerUp={onHandleUp}
+                onPointerCancel={onHandleUp}
+              />
+              <circle
+                className="handle-mid"
+                cx={ax}
+                cy={ay}
+                r={handleMidR}
+                strokeWidth={handleStroke}
+                onPointerDown={onAnchorHandleDown}
+                onPointerMove={onHandleMove}
+                onPointerUp={onHandleUp}
+                onPointerCancel={onHandleUp}
+              />
+            </g>
+          );
+        })()}
 
       {/* Handles (own divergent points only — anchor belongs to parent). */}
       {showHandles &&
@@ -379,9 +382,11 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
               }
             : {};
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: index is the stable identity of a polyline vertex
             <g key={i}>
               {/* Invisible larger hit zone — gives a clear "slightly beyond
                   visual" pointer target without enlarging the rendered circle. */}
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: SVG hit target for pointer drag */}
               <circle
                 cx={p.x}
                 cy={p.y}
@@ -396,6 +401,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
                 onContextMenu={(e) => onHandleContextMenu(e, i)}
                 {...branchHandlers}
               />
+              {/* biome-ignore lint/a11y/noStaticElementInteractions: SVG drag handle */}
               <circle
                 className={cls}
                 cx={p.x}
@@ -431,6 +437,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
           any handles drawn at the same position. Non-interactive when handles are
           shown so clicks fall through to the handle below. */}
       {startChipPoint && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: SVG start chip pointer target
         <g
           style={{ cursor: showHandles ? "default" : "pointer" }}
           pointerEvents={showHandles ? "none" : "auto"}

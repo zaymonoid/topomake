@@ -1,7 +1,7 @@
 import { useSetAtom } from "jotai";
 import { useButtonPressed } from "use-control";
-import { inputMap } from "../inputMap";
 import { cancelDrawingAtom, finishDrawingAtom } from "../../state/actions";
+import { inputMap } from "../inputMap";
 import { isTypingInField } from "../useFocusGuard";
 
 export function DrawingShortcuts() {

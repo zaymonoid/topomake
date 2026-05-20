@@ -1,8 +1,14 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
-import { topoAtom, editorModeAtom, historyAtom, dragOverrideAtom, DragOverride } from "./atoms";
-import { Point, Route } from "./types";
-import { ShortcutsScope } from "./mode";
+import {
+  type DragOverride,
+  dragOverrideAtom,
+  editorModeAtom,
+  historyAtom,
+  topoAtom,
+} from "./atoms";
+import type { ShortcutsScope } from "./mode";
+import type { Point, Route } from "./types";
 
 // For a variation, prepend the parent's anchor point so the rendered polyline
 // runs from the anchor through the variation's divergent points. For a non-variation
@@ -103,9 +109,7 @@ export const modeHintAtom = atom<ModeHint | null>((get) => {
   if (m.kind === "dragging") return null;
   const route = get(currentRouteAtom);
   const isVariation = route?.branchFrom !== undefined;
-  const label = isVariation
-    ? route?.name?.trim() || "Variation"
-    : `Route ${route?.number ?? "?"}`;
+  const label = isVariation ? route?.name?.trim() || "Variation" : `Route ${route?.number ?? "?"}`;
   if (m.kind === "drawing") {
     if (m.resumed) {
       return {

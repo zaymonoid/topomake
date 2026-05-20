@@ -1,11 +1,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useRef } from "react";
-import { topoAtom, undoAtom, redoAtom } from "../state/atoms";
-import { canRedoAtom, canUndoAtom } from "../state/computed";
-import { setImageAtom, setTopoNameAtom } from "../state/actions";
-import { TopoPicker } from "./TopoPicker";
 import { SHORTCUTS } from "../input/shortcuts";
+import { setImageAtom, setTopoNameAtom } from "../state/actions";
+import { redoAtom, topoAtom, undoAtom } from "../state/atoms";
+import { canRedoAtom, canUndoAtom } from "../state/computed";
 import { readImageFile } from "../util/image";
+import { TopoPicker } from "./TopoPicker";
 
 export function TopBar() {
   const topo = useAtomValue(topoAtom);
@@ -37,7 +37,17 @@ export function TopBar() {
     <header className="topbar">
       <div className="brand">
         <div className="mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="16"
+            height="16"
+            fill="none"
+            stroke="#fff"
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M3 18 Q8 6 12 10 T 21 6" />
             <path d="M3 14 Q8 4 12 7 T 21 3" opacity="0.5" />
           </svg>
@@ -61,8 +71,20 @@ export function TopBar() {
 
       <div className="sep" />
 
-      <button className="icon-btn" onClick={() => fileRef.current?.click()}>
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+      <button
+        type="button"
+        className="icon-btn"
+        onClick={() => fileRef.current?.click()}
+        aria-label={topo.image ? "Replace image" : "Upload image"}
+      >
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.6}
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
           <rect x="2" y="3" width="12" height="9" rx="1" />
           <circle cx="6" cy="7" r="1.4" />
           <path d="M2 11 L6 7.5 L10 10 L14 6" />
@@ -80,29 +102,51 @@ export function TopBar() {
 
       <div className="spacer" />
 
-      <div className="history-group" role="group" aria-label="History">
+      <div className="history-group">
         <button
+          type="button"
           className={`history-btn ${canUndo ? "" : "disabled"}`}
           onClick={() => canUndo && undo()}
           aria-label="Undo"
         >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M3.5 6.5 H9.5 A3 3 0 0 1 12.5 9.5 A3 3 0 0 1 9.5 12.5 H6" />
             <path d="M6 3.5 L3 6.5 L6 9.5" />
           </svg>
-          <span className="tip">Undo<kbd>{SHORTCUTS.undo.label}</kbd></span>
+          <span className="tip">
+            Undo<kbd>{SHORTCUTS.undo.label}</kbd>
+          </span>
         </button>
         <div className="history-divider" aria-hidden="true" />
         <button
+          type="button"
           className={`history-btn ${canRedo ? "" : "disabled"}`}
           onClick={() => canRedo && redo()}
           aria-label="Redo"
         >
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M12.5 6.5 H6.5 A3 3 0 0 0 3.5 9.5 A3 3 0 0 0 6.5 12.5 H10" />
             <path d="M10 3.5 L13 6.5 L10 9.5" />
           </svg>
-          <span className="tip">Redo<kbd>{SHORTCUTS.redo.label}</kbd></span>
+          <span className="tip">
+            Redo<kbd>{SHORTCUTS.redo.label}</kbd>
+          </span>
         </button>
       </div>
     </header>

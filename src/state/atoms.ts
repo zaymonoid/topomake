@@ -1,6 +1,6 @@
 import { atom } from "jotai";
-import { emptyTopo, Point, Snapshot, Topo } from "./types";
-import { EditorMode } from "./mode";
+import type { EditorMode } from "./mode";
+import { emptyTopo, type Point, type Snapshot, type Topo } from "./types";
 
 export type History = { past: Snapshot[]; future: Snapshot[] };
 

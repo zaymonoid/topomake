@@ -1,4 +1,4 @@
-import { Point } from "../state/types";
+import type { Point } from "../state/types";
 
 // Catmull-Rom -> cubic Bezier conversion.
 // Returns an SVG path string. Points are in arbitrary coords (we'll pass pixels).

@@ -1,8 +1,8 @@
-import { TopBar } from "./components/TopBar";
-import { LeftRail } from "./components/LeftRail";
 import { Canvas } from "./components/Canvas";
+import { LeftRail } from "./components/LeftRail";
 import { SidePanel } from "./components/SidePanel";
 import { StatusBar } from "./components/StatusBar";
+import { TopBar } from "./components/TopBar";
 import { KeyboardRoot } from "./input/KeyboardRoot";
 import { usePersistence } from "./state/persistence";
 

@@ -1,5 +1,5 @@
-import { Image, Snapshot } from "../state/types";
-import { History } from "../state/atoms";
+import type { History } from "../state/atoms";
+import type { Image, Snapshot } from "../state/types";
 
 const DB_NAME = "topomake";
 const DB_VERSION = 3;

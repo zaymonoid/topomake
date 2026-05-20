@@ -1,15 +1,16 @@
 import { atom } from "jotai";
 import {
-  topoAtom,
-  editorModeAtom,
   commitAtom,
-  snapshotHistoryAtom,
-  selectedAnnotationIdAtom,
   currentToolAtom,
   dragOverrideAtom,
+  editorModeAtom,
   extendStartSnapshotAtom,
+  selectedAnnotationIdAtom,
+  snapshotHistoryAtom,
+  topoAtom,
 } from "./atoms";
-import {
+import { nextRouteNumberAtom } from "./computed";
+import type {
   Annotation,
   NumberingOrder,
   Point,
@@ -19,7 +20,6 @@ import {
   Snapshot,
   Topo,
 } from "./types";
-import { nextRouteNumberAtom } from "./computed";
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -27,11 +27,7 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 // Variations (branchFrom set) are excluded from numbering and keep number = 0.
 // "created" -> non-variations unchanged. "ltr" / "rtl" -> stable sort by start.x, assign from startNumber.
 // Routes without points keep their relative order at the end of the sequence.
-function applyNumbering(
-  routes: Route[],
-  startNumber: number,
-  order: NumberingOrder,
-): Route[] {
+function applyNumbering(routes: Route[], startNumber: number, order: NumberingOrder): Route[] {
   const numberableInput = routes.filter((r) => r.branchFrom === undefined);
   let numbered: Route[];
   if (order === "created") {
@@ -87,9 +83,7 @@ function adjustAnchorsAfterPointChange(
     if (!r.branchFrom || r.branchFrom.routeId !== parentRouteId) return r;
     const at = r.branchFrom.atIndex;
     if (kind === "insert") {
-      return at >= index
-        ? { ...r, branchFrom: { ...r.branchFrom, atIndex: at + 1 } }
-        : r;
+      return at >= index ? { ...r, branchFrom: { ...r.branchFrom, atIndex: at + 1 } } : r;
     }
     // delete
     if (at === index) {
@@ -131,11 +125,7 @@ const withRoutePatched = (t: Topo, id: string, patch: Partial<Route>): Snapshot 
     t.routes.map((r) => (r.id === id ? { ...r, ...patch } : r)),
   );
 
-const withAnnotationPatched = (
-  t: Topo,
-  id: string,
-  patch: Partial<Annotation>,
-): Snapshot => ({
+const withAnnotationPatched = (t: Topo, id: string, patch: Partial<Annotation>): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
   lineWidth: t.lineWidth,
@@ -248,7 +238,13 @@ export const deleteRouteAtom = atom(null, (get, set, id: string) => {
   const toRemove = collectWithDescendants(id, topo.routes);
   set(
     commitAtom,
-    withRoutes(topo, numbered(topo, topo.routes.filter((r) => !toRemove.has(r.id)))),
+    withRoutes(
+      topo,
+      numbered(
+        topo,
+        topo.routes.filter((r) => !toRemove.has(r.id)),
+      ),
+    ),
   );
   const mode = get(editorModeAtom);
   if (mode.kind !== "empty" && "routeId" in mode && toRemove.has(mode.routeId)) {
@@ -287,13 +283,19 @@ export const setRouteNameAtom = atom(null, (get, set, payload: { id: string; nam
   set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { name: payload.name }));
 });
 
-export const setRouteNumberAtom = atom(null, (get, set, payload: { id: string; number: number }) => {
-  set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { number: payload.number }));
-});
+export const setRouteNumberAtom = atom(
+  null,
+  (get, set, payload: { id: string; number: number }) => {
+    set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { number: payload.number }));
+  },
+);
 
-export const setRouteColorAtom = atom(null, (get, set, payload: { id: string; color: RouteColor }) => {
-  set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { color: payload.color }));
-});
+export const setRouteColorAtom = atom(
+  null,
+  (get, set, payload: { id: string; color: RouteColor }) => {
+    set(commitAtom, withRoutePatched(get(topoAtom), payload.id, { color: payload.color }));
+  },
+);
 
 export const setRouteFinishStyleAtom = atom(
   null,
@@ -380,7 +382,11 @@ export const beginDragAtom = atom(
   (_get, set, payload: { routeId: string; pointIndex: number }) => {
     set(snapshotHistoryAtom);
     set(dragOverrideAtom, null);
-    set(editorModeAtom, { kind: "dragging", routeId: payload.routeId, pointIndex: payload.pointIndex });
+    set(editorModeAtom, {
+      kind: "dragging",
+      routeId: payload.routeId,
+      pointIndex: payload.pointIndex,
+    });
   },
 );
 
@@ -421,9 +427,7 @@ export const insertPointAtom = atom(
     if (!route) return;
     const points = [...route.points];
     points.splice(payload.index, 0, payload.point);
-    const withParent = topo.routes.map((r) =>
-      r.id === payload.routeId ? { ...r, points } : r,
-    );
+    const withParent = topo.routes.map((r) => (r.id === payload.routeId ? { ...r, points } : r));
     const { routes: shifted } = adjustAnchorsAfterPointChange(
       withParent,
       payload.routeId,
@@ -443,9 +447,7 @@ export const deletePointAtom = atom(
     const route = topo.routes.find((r) => r.id === payload.routeId);
     if (!route) return;
     const points = route.points.filter((_, i) => i !== payload.index);
-    const withParent = topo.routes.map((r) =>
-      r.id === payload.routeId ? { ...r, points } : r,
-    );
+    const withParent = topo.routes.map((r) => (r.id === payload.routeId ? { ...r, points } : r));
     const { routes: shifted, orphanedVariationIds } = adjustAnchorsAfterPointChange(
       withParent,
       payload.routeId,
@@ -473,25 +475,28 @@ export const deletePointAtom = atom(
 
 // === Annotations ===
 
-export const createAnnotationAtom = atom(null, (get, set, payload: { x: number; y: number; text?: string }) => {
-  const topo = get(topoAtom);
-  const id = uid();
-  const annotation: Annotation = {
-    id,
-    text: payload.text ?? "",
-    x: payload.x,
-    y: payload.y,
-  };
-  set(commitAtom, {
-    startNumber: topo.startNumber,
-    numberingOrder: topo.numberingOrder,
-    lineWidth: topo.lineWidth,
-    numberSize: topo.numberSize,
-    routes: topo.routes,
-    annotations: [...topo.annotations, annotation],
-  });
-  set(selectedAnnotationIdAtom, id);
-});
+export const createAnnotationAtom = atom(
+  null,
+  (get, set, payload: { x: number; y: number; text?: string }) => {
+    const topo = get(topoAtom);
+    const id = uid();
+    const annotation: Annotation = {
+      id,
+      text: payload.text ?? "",
+      x: payload.x,
+      y: payload.y,
+    };
+    set(commitAtom, {
+      startNumber: topo.startNumber,
+      numberingOrder: topo.numberingOrder,
+      lineWidth: topo.lineWidth,
+      numberSize: topo.numberSize,
+      routes: topo.routes,
+      annotations: [...topo.annotations, annotation],
+    });
+    set(selectedAnnotationIdAtom, id);
+  },
+);
 
 export const setAnnotationTextAtom = atom(
   null,

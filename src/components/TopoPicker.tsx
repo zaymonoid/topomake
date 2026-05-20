@@ -1,12 +1,8 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { currentTopoIdAtom } from "../state/atoms";
-import {
-  loadTopoActionAtom,
-  newTopoActionAtom,
-  deleteTopoActionAtom,
-} from "../state/persistence";
-import { listTopos, TopoMeta } from "../util/storage";
+import { deleteTopoActionAtom, loadTopoActionAtom, newTopoActionAtom } from "../state/persistence";
+import { listTopos, type TopoMeta } from "../util/storage";
 
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
@@ -30,13 +26,13 @@ export function TopoPicker() {
   const [metas, setMetas] = useState<TopoMeta[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     try {
       setMetas(await listTopos());
     } catch (err) {
       console.error("[picker] list failed", err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -53,7 +49,7 @@ export function TopoPicker() {
       document.removeEventListener("mousedown", onDocClick);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, refresh]);
 
   const onPick = async (id: string) => {
     if (id !== currentId) await loadTopo(id);
@@ -75,11 +71,20 @@ export function TopoPicker() {
   return (
     <div className="topo-picker" ref={rootRef}>
       <button
+        type="button"
         className="icon-btn"
         onClick={() => setOpen((v) => !v)}
         aria-label="Topos"
       >
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
           <path d="M2 4 H14" />
           <path d="M2 8 H14" />
           <path d="M2 12 H14" />
@@ -88,8 +93,15 @@ export function TopoPicker() {
       </button>
       {open && (
         <div className="topo-popover" role="menu">
-          <button className="topo-popover-new" onClick={onNew}>
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+          <button type="button" className="topo-popover-new" onClick={onNew}>
+            <svg
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.6}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
               <path d="M8 3 V13 M3 8 H13" />
             </svg>
             <span>New topo</span>
@@ -104,18 +116,33 @@ export function TopoPicker() {
                   key={m.id}
                   className={`topo-popover-row ${m.id === currentId ? "current" : ""}`}
                   onClick={() => onPick(m.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onPick(m.id);
+                    }
+                  }}
                   role="menuitem"
+                  tabIndex={0}
                 >
                   <div className="topo-popover-info">
                     <div className="topo-popover-name">{m.name || "Untitled Topo"}</div>
                     <div className="topo-popover-meta">{formatRelative(m.updatedAt)}</div>
                   </div>
                   <button
+                    type="button"
                     className="topo-popover-del"
                     onClick={(e) => onDelete(e, m.id)}
                     aria-label="Delete topo"
                   >
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round">
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.6}
+                      strokeLinecap="round"
+                      aria-hidden="true"
+                    >
                       <path d="M4 5 H12 M6 5 V3 H10 V5 M5 5 L6 13 H10 L11 5" />
                     </svg>
                   </button>

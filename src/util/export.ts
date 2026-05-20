@@ -1,5 +1,5 @@
-import { PALETTE, Topo } from "../state/types";
 import { effectivePoints } from "../state/computed";
+import { PALETTE, type Topo } from "../state/types";
 import { catmullRomPath } from "./spline";
 
 export function buildSvgString(topo: Topo): string {
@@ -11,7 +11,7 @@ export function buildSvgString(topo: Topo): string {
   const lineWidth = baseSize * 0.002;
   const startR = baseSize * 0.022;
   const startFontSize = baseSize * 0.025;
-  const endR = baseSize * 0.010;
+  const endR = baseSize * 0.01;
 
   const byId = new Map(topo.routes.map((r) => [r.id, r]));
 
@@ -31,9 +31,7 @@ export function buildSvgString(topo: Topo): string {
         `<path d="${path}" stroke="#fff" stroke-width="${lineWidth}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`,
       );
       if (px.length >= 2) {
-        parts.push(
-          `<circle cx="${end.x}" cy="${end.y}" r="${endR}" fill="#fff"/>`,
-        );
+        parts.push(`<circle cx="${end.x}" cy="${end.y}" r="${endR}" fill="#fff"/>`);
       }
       // Skip the numbered start chip for variations — their start is the parent's anchor,
       // which the parent already renders.
@@ -72,7 +70,8 @@ export async function exportTopoPng(topo: Topo): Promise<Blob> {
     const canvas = document.createElement("canvas");
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Failed to acquire 2d canvas context");
     ctx.drawImage(img, 0, 0, width, height);
     return await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/png");

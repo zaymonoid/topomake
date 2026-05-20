@@ -1,13 +1,13 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
-import { selectedAnnotationIdAtom } from "../state/atoms";
 import {
   beginAnnotationDragAtom,
   deleteAnnotationAtom,
   setAnnotationPosAtom,
   setAnnotationTextAtom,
 } from "../state/actions";
-import { Annotation, PALETTE } from "../state/types";
+import { selectedAnnotationIdAtom } from "../state/atoms";
+import { type Annotation, PALETTE } from "../state/types";
 
 type Props = {
   annotation: Annotation;
@@ -83,6 +83,8 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
   };
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: drag-positionable annotation pin
+    // biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation only; editing handled by input below
     <div
       className={`ann-pin ${isSelected ? "selected" : ""} ${annotation.text === "" ? "empty" : ""}`}
       style={{
