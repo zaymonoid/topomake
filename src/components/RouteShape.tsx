@@ -324,11 +324,10 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
         const ay = anchor.y * imageHeight;
         return (
           <g>
-            {/* Invisible larger hit zone */}
             <circle
               cx={ax}
               cy={ay}
-              r={handleMidR * 1.5}
+              r={handleMidR * 1.2}
               fill="transparent"
               pointerEvents="all"
               style={{ cursor: "grab" }}
@@ -368,7 +367,10 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
                 : "handle-end"
               : "handle-mid";
           const r = useEndpointStyle ? handleR : handleMidR;
-          const hitR = useEndpointStyle ? handleR * 1.4 : handleMidR * 1.5;
+          // Keep the invisible hit area just slightly beyond the visible circle
+          // so clicks on the line between handles still reach the line, not the
+          // handle hit zone.
+          const hitR = useEndpointStyle ? handleR * 1.2 : handleMidR * 1.2;
           const branchHandlers = branchToolActive
             ? {
                 onClick: (e: React.MouseEvent) => onBranchHandleClick(e, i),

@@ -1013,11 +1013,13 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
   fill: none;
   opacity: 0.4;
   filter: blur(4px);
+  pointer-events: none;
 }
 .selected-line {
   stroke: var(--primary);
   fill: none;
   opacity: 0.85;
+  pointer-events: none;
 }
 .handle-mid {
   fill: var(--bg-0);
