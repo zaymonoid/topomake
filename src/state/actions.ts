@@ -326,8 +326,7 @@ export const finishDrawingAtom = atom(null, (get, set) => {
     set(editorModeAtom, { kind: "selected", routeId: m.routeId });
     return;
   }
-  // Stay in branch tool when finishing a variation so the user can chain branches.
-  if (!route?.branchFrom) set(currentToolAtom, "select");
+  set(currentToolAtom, "select");
   // If the route ended up with no points, drop it.
   if (route && route.points.length === 0) {
     set(deleteRouteAtom, m.routeId);
@@ -350,7 +349,7 @@ export const cancelDrawingAtom = atom(null, (get, set) => {
   }
   // Fresh drawing — treat Esc the same as Enter: finish, keeping the route.
   const route = get(topoAtom).routes.find((r) => r.id === m.routeId);
-  if (!route?.branchFrom) set(currentToolAtom, "select");
+  set(currentToolAtom, "select");
   if (route && route.points.length === 0) {
     set(deleteRouteAtom, m.routeId);
     return;

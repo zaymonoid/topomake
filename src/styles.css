@@ -611,7 +611,6 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
 .route-row.selected {
   background: var(--bg-4);
   color: var(--fg-0);
-  box-shadow: inset 2px 0 0 var(--primary);
 }
 .num-chip {
   width: 26px; height: 26px;
@@ -848,7 +847,6 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
   border-radius: 6px;
   background: var(--bg-2);
   border: 1px solid var(--border);
-  border-left: 2px solid var(--primary);
   color: var(--fg-1);
   font-size: 12px;
   line-height: 1.35;
@@ -857,7 +855,7 @@ input { font: inherit; color: inherit; background: transparent; border: none; ou
 .ann-item:hover { background: var(--bg-3); }
 .ann-item.selected {
   background: var(--bg-3);
-  border-left-color: var(--primary-2);
+  border-color: var(--border-2);
 }
 .ann-item .ann-bullet {
   width: 8px; height: 8px;
