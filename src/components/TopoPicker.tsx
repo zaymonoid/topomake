@@ -4,6 +4,7 @@ import { currentTopoIdAtom } from "../state/atoms";
 import { deleteTopoActionAtom, loadTopoActionAtom, newTopoActionAtom } from "../state/persistence";
 import { listTopos, type TopoMeta } from "../util/storage";
 
+// TODO: (Zaymonoid): Use date-fns?
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
   const s = Math.round(diff / 1000);
