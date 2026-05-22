@@ -1,6 +1,6 @@
 import { useAtomValue } from "jotai";
 import { currentToolAtom, editorModeAtom } from "../state/atoms";
-import { currentRouteAtom, modeHintAtom } from "../state/computed";
+import { currentRouteAtom, modeHintAtom, routeNumbersAtom } from "../state/computed";
 import { type SaveStatus, saveStatusAtom } from "../state/persistence";
 
 const TOOL_LABEL: Record<string, string> = {
@@ -19,6 +19,7 @@ const SAVE_LABEL: Record<SaveStatus, string> = {
 export function StatusBar() {
   const tool = useAtomValue(currentToolAtom);
   const route = useAtomValue(currentRouteAtom);
+  const routeNumbers = useAtomValue(routeNumbersAtom);
   const hint = useAtomValue(modeHintAtom);
   const mode = useAtomValue(editorModeAtom);
   const saveStatus = useAtomValue(saveStatusAtom);
@@ -36,7 +37,7 @@ export function StatusBar() {
         : "Route";
   const routeIdentifier = isVariation
     ? route?.name?.trim() || "(unnamed)"
-    : `#${route?.number ?? "?"}`;
+    : `#${(route && routeNumbers.get(route.id)) ?? "?"}`;
 
   return (
     <footer className="statusbar">

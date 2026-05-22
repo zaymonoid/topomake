@@ -9,13 +9,13 @@ import {
   setAnnotationColorAtom,
   setLineWidthAtom,
   setNumberingOrderAtom,
+  setNumberingStartOffsetAtom,
   setNumberSizeAtom,
   setRouteColorAtom,
   setRouteFinishStyleAtom,
   setRouteNameAtom,
-  setStartNumberAtom,
 } from "../state/actions";
-import { currentToolAtom, selectedAnnotationIdAtom, topoAtom } from "../state/atoms";
+import { currentToolAtom, displayAtom, selectedAnnotationIdAtom } from "../state/atoms";
 import {
   annotationCountAtom,
   annotationsAtom,
@@ -24,6 +24,7 @@ import {
   drawingRouteIdAtom,
   routeCountAtom,
   routeNumberRangeAtom,
+  routeNumbersAtom,
   routesAtom,
   selectedRouteIdAtom,
 } from "../state/computed";
@@ -53,8 +54,9 @@ function TrashIcon() {
 }
 
 export function SidePanel() {
-  const topo = useAtomValue(topoAtom);
+  const display = useAtomValue(displayAtom);
   const routes = useAtomValue(routesAtom);
+  const routeNumbers = useAtomValue(routeNumbersAtom);
   const routeCount = useAtomValue(routeCountAtom);
   const range = useAtomValue(routeNumberRangeAtom);
   const selectedId = useAtomValue(selectedRouteIdAtom);
@@ -65,7 +67,7 @@ export function SidePanel() {
   const annCount = useAtomValue(annotationCountAtom);
   const selectedAnnId = useAtomValue(selectedAnnotationIdAtom);
 
-  const setStartNumber = useSetAtom(setStartNumberAtom);
+  const setNumberingStartOffset = useSetAtom(setNumberingStartOffsetAtom);
   const setNumberingOrder = useSetAtom(setNumberingOrderAtom);
   const setLineWidth = useSetAtom(setLineWidthAtom);
   const setNumberSize = useSetAtom(setNumberSizeAtom);
@@ -105,21 +107,23 @@ export function SidePanel() {
           <div className="stepper">
             <button
               type="button"
-              onClick={() => setStartNumber(Math.max(1, topo.startNumber - 1))}
+              onClick={() =>
+                setNumberingStartOffset(Math.max(1, display.numbering.startOffset - 1))
+              }
               aria-label="Decrease"
             >
               −
             </button>
             <input
-              value={topo.startNumber}
+              value={display.numbering.startOffset}
               onChange={(e) => {
                 const n = parseInt(e.target.value, 10);
-                if (!Number.isNaN(n)) setStartNumber(n);
+                if (!Number.isNaN(n)) setNumberingStartOffset(n);
               }}
             />
             <button
               type="button"
-              onClick={() => setStartNumber(topo.startNumber + 1)}
+              onClick={() => setNumberingStartOffset(display.numbering.startOffset + 1)}
               aria-label="Increase"
             >
               +
@@ -131,7 +135,7 @@ export function SidePanel() {
           <div className="select-wrap">
             <select
               className="ts-select"
-              value={topo.numberingOrder}
+              value={display.numbering.order}
               onChange={(e) => setNumberingOrder(e.target.value as NumberingOrder)}
             >
               <option value="created">Order created</option>
@@ -162,7 +166,7 @@ export function SidePanel() {
         <div className="slider-row">
           <div className="slider-lbl">
             Line width
-            <span className="slider-val">{topo.lineWidth.toFixed(2)}×</span>
+            <span className="slider-val">{display.lineWidth.toFixed(2)}×</span>
           </div>
           <input
             className="ts-slider"
@@ -170,14 +174,14 @@ export function SidePanel() {
             min={0.5}
             max={2.5}
             step={0.05}
-            value={topo.lineWidth}
+            value={display.lineWidth}
             onChange={(e) => setLineWidth(parseFloat(e.target.value))}
           />
         </div>
         <div className="slider-row">
           <div className="slider-lbl">
             Number size
-            <span className="slider-val">{topo.numberSize.toFixed(2)}×</span>
+            <span className="slider-val">{display.numberSize.toFixed(2)}×</span>
           </div>
           <input
             className="ts-slider"
@@ -185,7 +189,7 @@ export function SidePanel() {
             min={0.5}
             max={2.5}
             step={0.05}
-            value={topo.numberSize}
+            value={display.numberSize}
             onChange={(e) => setNumberSize(parseFloat(e.target.value))}
           />
         </div>
@@ -247,7 +251,7 @@ export function SidePanel() {
                     ↳
                   </span>
                 ) : (
-                  <span className="num-chip">{r.number}</span>
+                  <span className="num-chip">{routeNumbers.get(r.id)}</span>
                 )}
                 <span className="swatch" style={{ background: PALETTE[r.color] }} />
                 <span className="route-name">
@@ -395,7 +399,7 @@ export function SidePanel() {
                 ↳
               </span>
             ) : (
-              <span className="num-chip">{selected.number}</span>
+              <span className="num-chip">{routeNumbers.get(selected.id)}</span>
             )}
             <input
               ref={nameRef}

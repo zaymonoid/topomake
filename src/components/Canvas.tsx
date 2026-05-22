@@ -55,7 +55,7 @@ export function Canvas() {
       alert("Please drop an image file.");
       return;
     }
-    if (image && topo.routes.length > 0) {
+    if (image && routes.length > 0) {
       const ok = confirm("Replacing the image will keep existing routes. Continue?");
       if (!ok) return;
     }

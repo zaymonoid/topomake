@@ -31,12 +31,9 @@ const topoFromRecord = (record: StoredTopo): Topo => ({
   id: record.id,
   name: record.name,
   image: record.image,
-  startNumber: record.snapshot.startNumber,
-  numberingOrder: record.snapshot.numberingOrder ?? "created",
-  lineWidth: record.lineWidth ?? 1,
-  numberSize: record.numberSize ?? 1,
-  routes: record.snapshot.routes,
-  annotations: record.snapshot.annotations,
+  display: record.display,
+  metadata: record.metadata,
+  snapshot: record.snapshot,
 });
 
 // === Imperative actions (callable from UI) ===
@@ -85,19 +82,19 @@ export function usePersistence() {
     const flushSave = async () => {
       const topo = store.get(topoAtom);
       const history = trimHistory(store.get(historyAtom));
+      // We inject Date.now() at write time without updating topoAtom — mutating
+      // the atom here would re-trigger the save subscription and loop. The
+      // in-memory metadata.updatedAt is whatever was loaded; it's the persisted
+      // timestamp that's authoritative.
+      const now = Date.now();
       const record: StoredTopo = {
         id: topo.id,
         name: topo.name,
-        updatedAt: Date.now(),
+        updatedAt: now,
         image: topo.image,
-        lineWidth: topo.lineWidth,
-        numberSize: topo.numberSize,
-        snapshot: {
-          startNumber: topo.startNumber,
-          numberingOrder: topo.numberingOrder,
-          routes: topo.routes,
-          annotations: topo.annotations,
-        },
+        display: topo.display,
+        metadata: { ...topo.metadata, updatedAt: now },
+        snapshot: topo.snapshot,
         history,
       };
       try {

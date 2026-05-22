@@ -21,7 +21,7 @@ export function TopBar() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (topo.routes.length > 0) {
+    if (topo.snapshot.routes.length > 0) {
       const ok = confirm("Replacing the image will keep existing routes. Continue?");
       if (!ok) return;
     }

@@ -9,11 +9,12 @@ import {
   selectRouteAtom,
   setDragPointAtom,
 } from "../state/actions";
-import { currentToolAtom, hoveredHandleAtom, topoAtom } from "../state/atoms";
+import { currentToolAtom, displayAtom, hoveredHandleAtom } from "../state/atoms";
 import {
   dragOverrideForRouteAtomFamily,
   drawingRouteIdAtom,
   routeAtomFamily,
+  routeNumberAtomFamily,
   selectedRouteIdAtom,
 } from "../state/computed";
 import { PALETTE, type Point, type Route } from "../state/types";
@@ -48,7 +49,8 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const selectedId = useAtomValue(selectedRouteIdAtom);
   const drawingId = useAtomValue(drawingRouteIdAtom);
   const tool = useAtomValue(currentToolAtom);
-  const topo = useAtomValue(topoAtom);
+  const display = useAtomValue(displayAtom);
+  const routeNumber = useAtomValue(routeNumberAtomFamily(route.id));
   const dragOverride = useAtomValue(dragOverrideForRouteAtomFamily(route.id));
   // Variations subscribe to their parent so the anchor follows the parent's data
   // (and the parent's drag overrides) without re-rendering every other route.
@@ -106,11 +108,11 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   const end = pixelPoints[pixelPoints.length - 1];
 
   const baseSize = Math.min(imageWidth, imageHeight);
-  const lineWidth = baseSize * 0.0025 * topo.lineWidth;
+  const lineWidth = baseSize * 0.0025 * display.lineWidth;
   const glowWidth = baseSize * 0.014;
-  const selectedLineWidth = baseSize * 0.0035 * topo.lineWidth;
-  const startR = baseSize * 0.011 * topo.numberSize;
-  const startFontSize = baseSize * 0.013 * topo.numberSize;
+  const selectedLineWidth = baseSize * 0.0035 * display.lineWidth;
+  const startR = baseSize * 0.011 * display.numberSize;
+  const startFontSize = baseSize * 0.013 * display.numberSize;
   const endR = baseSize * 0.005;
   const handleR = baseSize * 0.013;
   const handleMidR = baseSize * 0.011;
@@ -463,7 +465,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
             pointerEvents="none"
             style={{ userSelect: "none" }}
           >
-            {route.number}
+            {routeNumber}
           </text>
         </g>
       )}

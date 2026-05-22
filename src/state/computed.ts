@@ -1,14 +1,16 @@
 import { atom } from "jotai";
 import { atomFamily } from "jotai/utils";
 import {
+  contentAtom,
   type DragOverride,
+  displayAtom,
   dragOverrideAtom,
   editorModeAtom,
   historyAtom,
   topoAtom,
 } from "./atoms";
 import type { ShortcutsScope } from "./mode";
-import type { Point, Route } from "./types";
+import type { NumberingOrder, Point, Route } from "./types";
 
 // For a variation, prepend the parent's anchor point so the rendered polyline
 // runs from the anchor through the variation's divergent points. For a non-variation
@@ -24,28 +26,63 @@ export function effectivePoints(route: Route, byId: Map<string, Route>): Point[]
 
 // === From topoAtom ===
 
-export const routesAtom = atom((get) => get(topoAtom).routes);
+export const routesAtom = atom((get) => get(contentAtom).routes);
 
-export const annotationsAtom = atom((get) => get(topoAtom).annotations);
+export const annotationsAtom = atom((get) => get(contentAtom).annotations);
 export const annotationCountAtom = atom((get) => get(annotationsAtom).length);
-
-export const routeNumberRangeAtom = atom<{ min: number; max: number } | null>((get) => {
-  const routes = get(routesAtom).filter((r) => r.branchFrom === undefined);
-  if (routes.length === 0) return null;
-  const nums = routes.map((r) => r.number);
-  return { min: Math.min(...nums), max: Math.max(...nums) };
-});
 
 export const imageLoadedAtom = atom((get) => get(topoAtom).image !== null);
 
 export const hasRoutesAtom = atom((get) => get(routesAtom).length > 0);
 export const routeCountAtom = atom((get) => get(routesAtom).length);
 
-export const nextRouteNumberAtom = atom((get) => {
-  const topo = get(topoAtom);
-  const numbered = topo.routes.filter((r) => r.branchFrom === undefined);
-  if (numbered.length === 0) return topo.startNumber;
-  return Math.max(...numbered.map((r) => r.number)) + 1;
+// === Derived route numbers ===
+//
+// Route numbers are NOT stored. They're derived from the display.numbering
+// settings + the route's position. Variations (branchFrom set) get no number.
+
+function orderNumberableRoutes(routes: Route[], order: NumberingOrder): Route[] {
+  const numberable = routes.filter((r) => r.branchFrom === undefined);
+  if (order === "created") return numberable;
+  // Spatial: sort by start.x. Routes without points keep their creation order
+  // at the end of the sequence (no spatial anchor to compare).
+  const decorated = numberable.map((r, i) => ({ r, i }));
+  const withPoints = decorated.filter((d) => d.r.points.length > 0);
+  const withoutPoints = decorated.filter((d) => d.r.points.length === 0);
+  withPoints.sort((a, b) => {
+    const dx = a.r.points[0].x - b.r.points[0].x;
+    if (dx !== 0) return order === "ltr" ? dx : -dx;
+    return a.i - b.i;
+  });
+  return [...withPoints, ...withoutPoints].map((d) => d.r);
+}
+
+// Pure: derive the label-per-route map from routes + numbering settings.
+// Exported for non-atom callers (e.g. exporters) that work over a Topo value.
+export function deriveRouteNumbers(
+  routes: Route[],
+  numbering: { startOffset: number; order: NumberingOrder },
+): Map<string, number> {
+  const ordered = orderNumberableRoutes(routes, numbering.order);
+  return new Map(ordered.map((r, i) => [r.id, numbering.startOffset + i]));
+}
+
+// Map from route id → derived number. Variations are absent from the map.
+export const routeNumbersAtom = atom((get): Map<string, number> => {
+  const routes = get(routesAtom);
+  const { numbering } = get(displayAtom);
+  return deriveRouteNumbers(routes, numbering);
+});
+
+// Per-route slice so a route only re-renders when *its* derived number changes.
+export const routeNumberAtomFamily = atomFamily((id: string) =>
+  atom((get) => get(routeNumbersAtom).get(id) ?? null),
+);
+
+export const routeNumberRangeAtom = atom<{ min: number; max: number } | null>((get) => {
+  const nums = [...get(routeNumbersAtom).values()];
+  if (nums.length === 0) return null;
+  return { min: Math.min(...nums), max: Math.max(...nums) };
 });
 
 export const exportableAtom = atom((get) => get(imageLoadedAtom));
@@ -109,7 +146,8 @@ export const modeHintAtom = atom<ModeHint | null>((get) => {
   if (m.kind === "dragging") return null;
   const route = get(currentRouteAtom);
   const isVariation = route?.branchFrom !== undefined;
-  const label = isVariation ? route?.name?.trim() || "Variation" : `Route ${route?.number ?? "?"}`;
+  const number = route ? (get(routeNumbersAtom).get(route.id) ?? null) : null;
+  const label = isVariation ? route?.name?.trim() || "Variation" : `Route ${number ?? "?"}`;
   if (m.kind === "drawing") {
     if (m.resumed) {
       return {

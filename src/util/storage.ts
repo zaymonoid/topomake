@@ -1,12 +1,15 @@
 import type { History } from "../state/atoms";
-import type { Image, Snapshot } from "../state/types";
+import type { Display, Image, Metadata, Snapshot } from "../state/types";
 
 const DB_NAME = "topomake";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const META_STORE = "topo_meta";
 const DATA_STORE = "topo_data";
 const LEGACY_STORES = ["topos"]; // dropped in v2 / v3
 
+// Lightweight index entry — read by the picker to list topos without loading
+// the full data record. `updatedAt` is a denormalized copy of metadata.updatedAt
+// so the list can sort without inspecting every record.
 export type TopoMeta = {
   id: string;
   name: string;
@@ -16,16 +19,16 @@ export type TopoMeta = {
 type TopoData = {
   id: string;
   image: Image | null;
-  lineWidth: number;
-  numberSize: number;
+  display: Display;
+  metadata: Metadata;
   snapshot: Snapshot;
   history: History;
 };
 
 export type StoredTopo = TopoMeta & {
   image: Image | null;
-  lineWidth: number;
-  numberSize: number;
+  display: Display;
+  metadata: Metadata;
   snapshot: Snapshot;
   history: History;
 };
@@ -39,9 +42,9 @@ function openDb(): Promise<IDBDatabase> {
     req.onupgradeneeded = (event) => {
       const db = req.result;
       const oldVersion = event.oldVersion;
-      // v3 changes the data store's record shape (image broken out, history is
-      // Snapshot[] not Topo[]). Old data is incompatible; dev-stage so drop it.
-      if (oldVersion < 3) {
+      // v5 restructures the record shape (Topo nested into display/metadata/snapshot,
+      // route.number removed). Old data is incompatible; dev-stage so drop it.
+      if (oldVersion < 5) {
         for (const name of [META_STORE, DATA_STORE, ...LEGACY_STORES]) {
           if (db.objectStoreNames.contains(name)) db.deleteObjectStore(name);
         }
@@ -82,8 +85,8 @@ export async function saveTopo(record: StoredTopo): Promise<void> {
   const data: TopoData = {
     id: record.id,
     image: record.image,
-    lineWidth: record.lineWidth,
-    numberSize: record.numberSize,
+    display: record.display,
+    metadata: record.metadata,
     snapshot: record.snapshot,
     history: record.history,
   };
@@ -105,8 +108,8 @@ export async function loadTopo(id: string): Promise<StoredTopo | null> {
     name: meta.name,
     updatedAt: meta.updatedAt,
     image: data.image,
-    lineWidth: data.lineWidth ?? 1,
-    numberSize: data.numberSize ?? 1,
+    display: data.display,
+    metadata: data.metadata,
     snapshot: data.snapshot,
     history: data.history,
   };

@@ -1,4 +1,4 @@
-import { atom } from "jotai";
+import { atom, getDefaultStore, type PrimitiveAtom } from "jotai";
 import type { EditorMode } from "./mode";
 import { emptyTopo, type Point, type Snapshot, type Topo } from "./types";
 
@@ -33,32 +33,63 @@ export const hoveredHandleAtom = atom<HoveredHandle>(null);
 // not part of history, just a side-channel for the cancel action.
 export const extendStartSnapshotAtom = atom<Snapshot | null>(null);
 
+// === Sub-system slice atoms (read side) ===
+// Reading through a slice means a component only re-renders when *its* slice
+// changes — and it never reaches into the Topo shape directly.
+export const displayAtom = atom((get) => get(topoAtom).display);
+export const contentAtom = atom((get) => get(topoAtom).snapshot);
+export const metadataAtom = atom((get) => get(topoAtom).metadata);
+
+// === Sub-system update functions (write side) ===
+// Plain function calls — no `set(atom, ...)` ceremony at call sites.
+// Assumes the default Jotai store (topomake is single-store; if Provider-scoped
+// stores are ever introduced these helpers will silently miss them).
+export const updateDisplay = (
+  ta: PrimitiveAtom<Topo>,
+  fn: (d: Topo["display"]) => Topo["display"],
+): void => {
+  const store = getDefaultStore();
+  const t = store.get(ta);
+  store.set(ta, { ...t, display: fn(t.display) });
+};
+
+export const updateContent = (
+  ta: PrimitiveAtom<Topo>,
+  fn: (c: Topo["snapshot"]) => Topo["snapshot"],
+): void => {
+  const store = getDefaultStore();
+  const t = store.get(ta);
+  store.set(ta, { ...t, snapshot: fn(t.snapshot) });
+};
+
+export const updateMetadata = (
+  ta: PrimitiveAtom<Topo>,
+  fn: (m: Topo["metadata"]) => Topo["metadata"],
+): void => {
+  const store = getDefaultStore();
+  const t = store.get(ta);
+  store.set(ta, { ...t, metadata: fn(t.metadata) });
+};
+
 // === History plumbing (write-only) ===
 //
-// History only tracks `Snapshot` (startNumber + routes + annotations).
-// Identity, name, and image live on Topo but never participate in undo/redo —
-// they're set once or edited inline (renames aren't history events).
+// History only tracks `Snapshot` (routes + annotations).
+// Identity, name, image, display prefs, and metadata live on Topo but never
+// participate in undo/redo.
 
-const toSnapshot = (t: Topo): Snapshot => ({
-  startNumber: t.startNumber,
-  numberingOrder: t.numberingOrder,
-  routes: t.routes,
-  annotations: t.annotations,
-});
-
-// Commit a new editable-state, pushing the previous snapshot onto history.past and clearing future.
+// Commit a new content snapshot, pushing the previous one onto history.past and clearing future.
 export const commitAtom = atom(null, (get, set, next: Snapshot) => {
   const prev = get(topoAtom);
   const hist = get(historyAtom);
-  set(historyAtom, { past: [...hist.past, toSnapshot(prev)], future: [] });
-  set(topoAtom, { ...prev, ...next });
+  set(historyAtom, { past: [...hist.past, prev.snapshot], future: [] });
+  set(topoAtom, { ...prev, snapshot: next });
 });
 
 // Push the current snapshot onto history without changing it — used to mark a drag start.
 export const snapshotHistoryAtom = atom(null, (get, set) => {
   const topo = get(topoAtom);
   const hist = get(historyAtom);
-  set(historyAtom, { past: [...hist.past, toSnapshot(topo)], future: [] });
+  set(historyAtom, { past: [...hist.past, topo.snapshot], future: [] });
 });
 
 export const undoAtom = atom(null, (get, set) => {
@@ -68,9 +99,9 @@ export const undoAtom = atom(null, (get, set) => {
   const current = get(topoAtom);
   set(historyAtom, {
     past: hist.past.slice(0, -1),
-    future: [toSnapshot(current), ...hist.future],
+    future: [current.snapshot, ...hist.future],
   });
-  set(topoAtom, { ...current, ...prev });
+  set(topoAtom, { ...current, snapshot: prev });
 });
 
 export const redoAtom = atom(null, (get, set) => {
@@ -79,8 +110,8 @@ export const redoAtom = atom(null, (get, set) => {
   const next = hist.future[0];
   const current = get(topoAtom);
   set(historyAtom, {
-    past: [...hist.past, toSnapshot(current)],
+    past: [...hist.past, current.snapshot],
     future: hist.future.slice(1),
   });
-  set(topoAtom, { ...current, ...next });
+  set(topoAtom, { ...current, snapshot: next });
 });

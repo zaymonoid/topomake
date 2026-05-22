@@ -1,4 +1,4 @@
-import { effectivePoints } from "../state/computed";
+import { deriveRouteNumbers, effectivePoints } from "../state/computed";
 import { PALETTE, type Topo } from "../state/types";
 import { catmullRomPath } from "./spline";
 
@@ -13,9 +13,10 @@ export function buildSvgString(topo: Topo): string {
   const startFontSize = baseSize * 0.025;
   const endR = baseSize * 0.01;
 
-  const byId = new Map(topo.routes.map((r) => [r.id, r]));
+  const byId = new Map(topo.snapshot.routes.map((r) => [r.id, r]));
+  const numbers = deriveRouteNumbers(topo.snapshot.routes, topo.display.numbering);
 
-  const routes = topo.routes
+  const routes = topo.snapshot.routes
     .map((r) => {
       const startColor = PALETTE[r.color];
       const eff = effectivePoints(r, byId);
@@ -36,9 +37,10 @@ export function buildSvgString(topo: Topo): string {
       // Skip the numbered start chip for variations — their start is the parent's anchor,
       // which the parent already renders.
       if (!isVariation) {
+        const num = numbers.get(r.id);
         parts.push(
           `<circle cx="${start.x}" cy="${start.y}" r="${startR}" fill="${startColor}"/>`,
-          `<text x="${start.x}" y="${start.y}" font-size="${startFontSize}" fill="${numFill}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, monospace">${r.number}</text>`,
+          `<text x="${start.x}" y="${start.y}" font-size="${startFontSize}" fill="${numFill}" text-anchor="middle" dominant-baseline="central" font-weight="700" font-family="JetBrains Mono, ui-monospace, SFMono-Regular, &quot;SF Mono&quot;, Menlo, monospace">${num ?? ""}</text>`,
         );
       }
       return parts.join("");

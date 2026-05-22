@@ -15,9 +15,10 @@ export type NumberingOrder = "created" | "ltr" | "rtl";
 
 export type BranchAnchor = { routeId: string; atIndex: number };
 
+// Route numbers are NOT stored — they're derived at render time from
+// display.numbering + position in routes[]. See routeNumbersAtom.
 export type Route = {
   id: string;
-  number: number;
   name: string;
   color: RouteColor;
   finishStyle: RouteFinishStyle;
@@ -38,31 +39,43 @@ export type Annotation = {
 
 export type Image = { dataUrl: string; width: number; height: number };
 
-export type Topo = {
-  id: string;
-  name: string;
-  image: Image | null;
-  // History-tracked fields (see Snapshot below):
-  startNumber: number;
-  numberingOrder: NumberingOrder;
+export type Display = {
   lineWidth: number; // multiplier on rendered route stroke widths (default 1)
   numberSize: number; // multiplier on rendered route number chip size/font (default 1)
+  numbering: {
+    startOffset: number; // first numbered route gets this label
+    order: NumberingOrder;
+  };
+};
+
+export type Metadata = {
+  updatedAt: number;
+};
+
+// The subset of Topo that participates in undo/redo: editable content only.
+export type Snapshot = {
   routes: Route[];
   annotations: Annotation[];
 };
 
-// The subset of Topo that participates in undo/redo.
-// lineWidth / numberSize are display prefs — not history-tracked.
-export type Snapshot = Pick<Topo, "startNumber" | "numberingOrder" | "routes" | "annotations">;
+export type Topo = {
+  id: string;
+  name: string;
+  image: Image | null;
+  display: Display;
+  metadata: Metadata;
+  snapshot: Snapshot;
+};
 
 export const emptyTopo = (id: string): Topo => ({
   id,
   name: "Untitled Topo",
   image: null,
-  startNumber: 1,
-  numberingOrder: "created",
-  lineWidth: 1,
-  numberSize: 1,
-  routes: [],
-  annotations: [],
+  display: {
+    lineWidth: 1,
+    numberSize: 1,
+    numbering: { startOffset: 1, order: "created" },
+  },
+  metadata: { updatedAt: Date.now() },
+  snapshot: { routes: [], annotations: [] },
 });
