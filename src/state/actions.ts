@@ -104,8 +104,6 @@ const numbered = (t: Topo, routes: Route[]): Route[] =>
 const snapshotOf = (t: Topo): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
-  lineWidth: t.lineWidth,
-  numberSize: t.numberSize,
   routes: t.routes,
   annotations: t.annotations,
 });
@@ -113,8 +111,6 @@ const snapshotOf = (t: Topo): Snapshot => ({
 const withRoutes = (t: Topo, routes: Route[]): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
-  lineWidth: t.lineWidth,
-  numberSize: t.numberSize,
   routes,
   annotations: t.annotations,
 });
@@ -128,8 +124,6 @@ const withRoutePatched = (t: Topo, id: string, patch: Partial<Route>): Snapshot 
 const withAnnotationPatched = (t: Topo, id: string, patch: Partial<Annotation>): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
-  lineWidth: t.lineWidth,
-  numberSize: t.numberSize,
   routes: t.routes,
   annotations: t.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
 });
@@ -176,8 +170,6 @@ export const setStartNumberAtom = atom(null, (get, set, startNumber: number) => 
   set(commitAtom, {
     startNumber,
     numberingOrder: topo.numberingOrder,
-    lineWidth: topo.lineWidth,
-    numberSize: topo.numberSize,
     routes,
     annotations: topo.annotations,
   });
@@ -188,21 +180,18 @@ export const setNumberingOrderAtom = atom(null, (get, set, order: NumberingOrder
   set(commitAtom, {
     startNumber: topo.startNumber,
     numberingOrder: order,
-    lineWidth: topo.lineWidth,
-    numberSize: topo.numberSize,
     routes: applyNumbering(topo.routes, topo.startNumber, order),
     annotations: topo.annotations,
   });
 });
 
+// Display prefs — not history-tracked (slider drags shouldn't pollute undo/redo).
 export const setLineWidthAtom = atom(null, (get, set, lineWidth: number) => {
-  const topo = get(topoAtom);
-  set(commitAtom, { ...snapshotOf(topo), lineWidth });
+  set(topoAtom, { ...get(topoAtom), lineWidth });
 });
 
 export const setNumberSizeAtom = atom(null, (get, set, numberSize: number) => {
-  const topo = get(topoAtom);
-  set(commitAtom, { ...snapshotOf(topo), numberSize });
+  set(topoAtom, { ...get(topoAtom), numberSize });
 });
 
 // === Routes ===
@@ -489,8 +478,6 @@ export const createAnnotationAtom = atom(
     set(commitAtom, {
       startNumber: topo.startNumber,
       numberingOrder: topo.numberingOrder,
-      lineWidth: topo.lineWidth,
-      numberSize: topo.numberSize,
       routes: topo.routes,
       annotations: [...topo.annotations, annotation],
     });
@@ -531,8 +518,6 @@ export const deleteAnnotationAtom = atom(null, (get, set, id: string) => {
   set(commitAtom, {
     startNumber: topo.startNumber,
     numberingOrder: topo.numberingOrder,
-    lineWidth: topo.lineWidth,
-    numberSize: topo.numberSize,
     routes: topo.routes,
     annotations: topo.annotations.filter((a) => a.id !== id),
   });

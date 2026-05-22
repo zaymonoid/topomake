@@ -2,7 +2,7 @@ import type { History } from "../state/atoms";
 import type { Image, Snapshot } from "../state/types";
 
 const DB_NAME = "topomake";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const META_STORE = "topo_meta";
 const DATA_STORE = "topo_data";
 const LEGACY_STORES = ["topos"]; // dropped in v2 / v3
@@ -16,12 +16,16 @@ export type TopoMeta = {
 type TopoData = {
   id: string;
   image: Image | null;
+  lineWidth: number;
+  numberSize: number;
   snapshot: Snapshot;
   history: History;
 };
 
 export type StoredTopo = TopoMeta & {
   image: Image | null;
+  lineWidth: number;
+  numberSize: number;
   snapshot: Snapshot;
   history: History;
 };
@@ -78,6 +82,8 @@ export async function saveTopo(record: StoredTopo): Promise<void> {
   const data: TopoData = {
     id: record.id,
     image: record.image,
+    lineWidth: record.lineWidth,
+    numberSize: record.numberSize,
     snapshot: record.snapshot,
     history: record.history,
   };
@@ -99,6 +105,8 @@ export async function loadTopo(id: string): Promise<StoredTopo | null> {
     name: meta.name,
     updatedAt: meta.updatedAt,
     image: data.image,
+    lineWidth: data.lineWidth ?? 1,
+    numberSize: data.numberSize ?? 1,
     snapshot: data.snapshot,
     history: data.history,
   };

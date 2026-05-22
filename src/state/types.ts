@@ -52,10 +52,8 @@ export type Topo = {
 };
 
 // The subset of Topo that participates in undo/redo.
-export type Snapshot = Pick<
-  Topo,
-  "startNumber" | "numberingOrder" | "lineWidth" | "numberSize" | "routes" | "annotations"
->;
+// lineWidth / numberSize are display prefs — not history-tracked.
+export type Snapshot = Pick<Topo, "startNumber" | "numberingOrder" | "routes" | "annotations">;
 
 export const emptyTopo = (id: string): Topo => ({
   id,

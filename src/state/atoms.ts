@@ -42,8 +42,6 @@ export const extendStartSnapshotAtom = atom<Snapshot | null>(null);
 const toSnapshot = (t: Topo): Snapshot => ({
   startNumber: t.startNumber,
   numberingOrder: t.numberingOrder,
-  lineWidth: t.lineWidth,
-  numberSize: t.numberSize,
   routes: t.routes,
   annotations: t.annotations,
 });
