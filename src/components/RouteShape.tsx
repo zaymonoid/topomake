@@ -1,23 +1,17 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSelector } from "@zaymonoid/katha/react";
 import { useRef } from "react";
 import {
-  beginDragAtom,
-  branchRouteAtom,
-  deletePointAtom,
-  endDragAtom,
-  insertPointAtom,
-  selectRouteAtom,
-  setDragPointAtom,
-} from "../state/actions";
-import { currentToolAtom, displayAtom, hoveredHandleAtom } from "../state/atoms";
-import {
-  dragOverrideForRouteAtomFamily,
-  drawingRouteIdAtom,
-  routeAtomFamily,
-  routeNumberAtomFamily,
-  selectedRouteIdAtom,
-} from "../state/computed";
+  selectCurrentTool,
+  selectDisplay,
+  selectDrawingRouteId,
+  selectHoveredHandle,
+  selectRoute,
+  selectRouteNumber,
+  selectSelectedRouteId,
+} from "../state/selectors";
+import { store } from "../state/store";
 import { PALETTE, type Point, type Route } from "../state/types";
+import { uid } from "../util/id";
 import { catmullRomPath } from "../util/spline";
 
 type Props = {
@@ -43,30 +37,17 @@ function clientToNormalized(
   return { x: px / w, y: py / h };
 }
 
-const NO_PARENT = "__no_parent__";
-
 export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
-  const selectedId = useAtomValue(selectedRouteIdAtom);
-  const drawingId = useAtomValue(drawingRouteIdAtom);
-  const tool = useAtomValue(currentToolAtom);
-  const display = useAtomValue(displayAtom);
-  const routeNumber = useAtomValue(routeNumberAtomFamily(route.id));
-  const dragOverride = useAtomValue(dragOverrideForRouteAtomFamily(route.id));
-  // Variations subscribe to their parent so the anchor follows the parent's data
-  // (and the parent's drag overrides) without re-rendering every other route.
-  const parentRoute = useAtomValue(routeAtomFamily(route.branchFrom?.routeId ?? NO_PARENT));
-  const parentDragOverride = useAtomValue(
-    dragOverrideForRouteAtomFamily(route.branchFrom?.routeId ?? NO_PARENT),
-  );
-  const hoveredHandle = useAtomValue(hoveredHandleAtom);
-  const setHoveredHandle = useSetAtom(hoveredHandleAtom);
-  const selectRoute = useSetAtom(selectRouteAtom);
-  const beginDrag = useSetAtom(beginDragAtom);
-  const setDragPoint = useSetAtom(setDragPointAtom);
-  const endDrag = useSetAtom(endDragAtom);
-  const insertPoint = useSetAtom(insertPointAtom);
-  const deletePoint = useSetAtom(deletePointAtom);
-  const branchRoute = useSetAtom(branchRouteAtom);
+  const selectedId = useSelector(store, selectSelectedRouteId);
+  const drawingId = useSelector(store, selectDrawingRouteId);
+  const tool = useSelector(store, selectCurrentTool);
+  const display = useSelector(store, selectDisplay);
+  const routeNumber = useSelector(store, (s) => selectRouteNumber(s, route.id));
+  // For variations: read parent's materialized route (drag overlay already
+  // applied) so the variation's anchor follows any in-flight parent drag.
+  const parentId = route.branchFrom?.routeId ?? null;
+  const parentRoute = useSelector(store, (s) => (parentId ? selectRoute(s, parentId) : null));
+  const hoveredHandle = useSelector(store, selectHoveredHandle);
 
   const isSelected = selectedId === route.id;
   const isDrawing = drawingId === route.id;
@@ -80,23 +61,19 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
   // Cached on pointerdown so per-frame moves don't force a layout flush.
   const dragRectRef = useRef<DOMRect | null>(null);
 
-  // The variation's anchor in normalized coords, taking the parent's live drag
-  // override into account when the parent's anchor node is being dragged.
+  // The variation's anchor — points come from the parent's already-materialized
+  // points, so any parent-side drag overlay is already applied.
   let anchor: Point | null = null;
   if (route.branchFrom && parentRoute) {
-    const at = route.branchFrom.atIndex;
-    if (parentDragOverride && parentDragOverride.pointIndex === at) {
-      anchor = parentDragOverride.point;
-    } else {
-      anchor = parentRoute.points[at] ?? null;
-    }
+    anchor = parentRoute.points[route.branchFrom.atIndex] ?? null;
   }
 
-  // Own (divergent) points in pixel coords, with this route's drag override applied.
-  const ownPixelPoints = route.points.map((p, i) => {
-    const src = dragOverride && i === dragOverride.pointIndex ? dragOverride.point : p;
-    return { x: src.x * imageWidth, y: src.y * imageHeight };
-  });
+  // Own (divergent) points in pixel coords. route.points is already drag-
+  // materialized by selectRoutes; no merge needed here.
+  const ownPixelPoints = route.points.map((p) => ({
+    x: p.x * imageWidth,
+    y: p.y * imageHeight,
+  }));
   // Full pixel polyline: anchor prepended for variations so the connecting segment renders.
   const pixelPoints =
     anchor !== null
@@ -132,7 +109,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     e.stopPropagation();
     if (branchToolActive) return; // branch tool only acts on handle clicks
     if (!isSelected) {
-      selectRoute(route.id);
+      store.put({ id: "mode/selectRoute", data: { routeId: route.id } });
       return;
     }
     if (isDrawing || !svgRef.current) return;
@@ -157,7 +134,10 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     //   non-variation: segment i is between own[i] and own[i+1] -> insert at i+1
     //   variation:     segment 0 is anchor->own[0], segment i is between own[i-1] and own[i] -> insert at i
     const insertIdx = isVariation ? bestSegIdx : bestSegIdx + 1;
-    insertPoint({ routeId: route.id, index: insertIdx, point: np });
+    store.put({
+      id: "points/insert",
+      data: { routeId: route.id, index: insertIdx, point: np },
+    });
   };
 
   const onHandleDown = (e: React.PointerEvent, ownIndex: number) => {
@@ -168,20 +148,28 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     (e.target as Element).setPointerCapture(e.pointerId);
     dragPointerIdRef.current = e.pointerId;
     dragRectRef.current = svgRef.current.getBoundingClientRect();
-    beginDrag({ routeId: route.id, pointIndex: ownIndex });
+    store.put({ id: "drag/begin", data: { routeId: route.id, pointIndex: ownIndex } });
   };
 
   const onHandleMove = (e: React.PointerEvent) => {
     if (dragPointerIdRef.current !== e.pointerId) return;
     if (!dragRectRef.current) return;
-    setDragPoint(clientToNormalized(e, dragRectRef.current, imageWidth, imageHeight));
+    const np = clientToNormalized(e, dragRectRef.current, imageWidth, imageHeight);
+    // We have no per-frame visibility into the drag-target slice from here,
+    // so read mode to know which (routeId, pointIndex) we're dragging.
+    const m = store.getState().editor.mode;
+    if (m.kind !== "dragging") return;
+    store.put({
+      id: "drag/setLivePosition",
+      data: { routeId: m.routeId, pointIndex: m.pointIndex, point: np },
+    });
   };
 
   const onHandleUp = (e: React.PointerEvent) => {
     if (dragPointerIdRef.current !== e.pointerId) return;
     dragPointerIdRef.current = null;
     dragRectRef.current = null;
-    endDrag();
+    store.put({ id: "drag/end" });
   };
 
   const onHandleContextMenu = (e: React.MouseEvent, ownIndex: number) => {
@@ -189,12 +177,12 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     if (route.points.length <= 2) return;
     e.preventDefault();
     e.stopPropagation();
-    deletePoint({ routeId: route.id, index: ownIndex });
+    store.put({ id: "points/delete", data: { routeId: route.id, index: ownIndex } });
   };
 
   // Anchor handle (variations only): dragging this drags the PARENT's point at
   // branchFrom.atIndex. The variation's rendered anchor follows automatically
-  // because parentDragOverride is read above.
+  // via the materialized parent route.
   const onAnchorHandleDown = (e: React.PointerEvent) => {
     e.stopPropagation();
     if (e.button !== 0) return;
@@ -204,22 +192,30 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
     (e.target as Element).setPointerCapture(e.pointerId);
     dragPointerIdRef.current = e.pointerId;
     dragRectRef.current = svgRef.current.getBoundingClientRect();
-    beginDrag({ routeId: route.branchFrom.routeId, pointIndex: route.branchFrom.atIndex });
+    store.put({
+      id: "drag/begin",
+      data: { routeId: route.branchFrom.routeId, pointIndex: route.branchFrom.atIndex },
+    });
   };
 
   const onBranchHandleClick = (e: React.MouseEvent, ownIndex: number) => {
     e.stopPropagation();
-    branchRoute({ parentRouteId: route.id, atIndex: ownIndex });
+    const id = uid();
+    store.put({
+      id: "routes/branch",
+      data: { id, parentRouteId: route.id, atIndex: ownIndex },
+    });
+    store.put({ id: "mode/enterDrawing", data: { routeId: id } });
   };
 
   const onBranchHandleEnter = (ownIndex: number) => {
-    setHoveredHandle({ routeId: route.id, index: ownIndex });
+    store.put({ id: "hover/set", data: { routeId: route.id, index: ownIndex } });
   };
 
   const onBranchHandleLeave = (ownIndex: number) => {
     const h = hoveredHandle;
     if (h && h.routeId === route.id && h.index === ownIndex) {
-      setHoveredHandle(null);
+      store.put({ id: "hover/clear" });
     }
   };
 
@@ -448,7 +444,7 @@ export function RouteShape({ route, imageWidth, imageHeight, svgRef }: Props) {
               ? undefined
               : (e) => {
                   e.stopPropagation();
-                  selectRoute(route.id);
+                  store.put({ id: "mode/selectRoute", data: { routeId: route.id } });
                 }
           }
         >

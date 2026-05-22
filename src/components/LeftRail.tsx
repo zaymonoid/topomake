@@ -1,39 +1,47 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { createRouteAtom, deselectAtom, extendRouteAtom } from "../state/actions";
-import { currentToolAtom, editorModeAtom, type Tool } from "../state/atoms";
-import { canAddRouteAtom, imageLoadedAtom } from "../state/computed";
+import { useSelector } from "@zaymonoid/katha/react";
+import type { Tool } from "../state/actions";
+import {
+  selectCanAddRoute,
+  selectCurrentTool,
+  selectImageLoaded,
+  selectMode,
+} from "../state/selectors";
+import { store } from "../state/store";
+import { uid } from "../util/id";
 
 export function LeftRail() {
-  const [tool, setTool] = useAtom(currentToolAtom);
-  const imageLoaded = useAtomValue(imageLoadedAtom);
-  const canAdd = useAtomValue(canAddRouteAtom);
-  const editorMode = useAtomValue(editorModeAtom);
-  const createRoute = useSetAtom(createRouteAtom);
-  const extendRoute = useSetAtom(extendRouteAtom);
-  const deselect = useSetAtom(deselectAtom);
+  const tool = useSelector(store, selectCurrentTool);
+  const imageLoaded = useSelector(store, selectImageLoaded);
+  const canAdd = useSelector(store, selectCanAddRoute);
+  const mode = useSelector(store, selectMode);
 
   const onSelect = (next: Tool) => {
     if (next === "select") {
-      setTool("select");
-      deselect();
+      store.put({ id: "tool/set", data: "select" });
+      store.put({ id: "mode/deselect" });
       return;
     }
     if (next === "draw") {
-      setTool("draw");
+      store.put({ id: "tool/set", data: "draw" });
       // Contextual: extend the selected route if one is selected; else create new.
-      if (editorMode.kind === "selected") {
-        extendRoute(editorMode.routeId);
+      if (mode.kind === "selected") {
+        store.put({
+          id: "mode/enterDrawing",
+          data: { routeId: mode.routeId, resumed: true },
+        });
       } else if (canAdd) {
-        createRoute();
+        const id = uid();
+        store.put({ id: "routes/create", data: { id } });
+        store.put({ id: "mode/enterDrawing", data: { routeId: id } });
       }
       return;
     }
     if (next === "annotate") {
-      setTool("annotate");
+      store.put({ id: "tool/set", data: "annotate" });
       return;
     }
     if (next === "branch") {
-      setTool("branch");
+      store.put({ id: "tool/set", data: "branch" });
       return;
     }
   };

@@ -1,10 +1,10 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSelector } from "@zaymonoid/katha/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { currentTopoIdAtom } from "../state/atoms";
-import { deleteTopoActionAtom, loadTopoActionAtom, newTopoActionAtom } from "../state/persistence";
-import { listTopos, type TopoMeta } from "../util/storage";
+import { selectTopo } from "../state/selectors";
+import { store } from "../state/store";
+import { newTopoId } from "../util/id";
+import { deleteTopo, listTopos, loadTopo, type TopoMeta } from "../util/storage";
 
-// TODO: (Zaymonoid): Use date-fns?
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
   const s = Math.round(diff / 1000);
@@ -17,11 +17,29 @@ function formatRelative(ts: number): string {
   return `${d}d ago`;
 }
 
+const loadAndDispatch = async (id: string) => {
+  const record = await loadTopo(id);
+  if (!record) return;
+  store.put({
+    id: "topo/loadFrom",
+    data: {
+      id: record.id,
+      name: record.name,
+      image: record.image,
+      display: record.display,
+      metadata: record.metadata,
+      snapshot: record.snapshot,
+    },
+  });
+  store.put({
+    id: "history/restore",
+    data: { past: record.history.past, future: record.history.future },
+  });
+};
+
 export function TopoPicker() {
-  const currentId = useAtomValue(currentTopoIdAtom);
-  const loadTopo = useSetAtom(loadTopoActionAtom);
-  const newTopo = useSetAtom(newTopoActionAtom);
-  const deleteTopoAction = useSetAtom(deleteTopoActionAtom);
+  const currentTopo = useSelector(store, selectTopo);
+  const currentId = currentTopo.id;
 
   const [open, setOpen] = useState(false);
   const [metas, setMetas] = useState<TopoMeta[]>([]);
@@ -53,19 +71,29 @@ export function TopoPicker() {
   }, [open, refresh]);
 
   const onPick = async (id: string) => {
-    if (id !== currentId) await loadTopo(id);
+    if (id !== currentId) await loadAndDispatch(id);
     setOpen(false);
   };
 
   const onNew = () => {
-    newTopo();
+    store.put({ id: "topo/new", data: { id: newTopoId() } });
     setOpen(false);
   };
 
   const onDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Delete this topo? This can't be undone.")) return;
-    await deleteTopoAction(id);
+    await deleteTopo(id);
+    // If we just deleted the current topo, fall through to the next one or
+    // a fresh blank.
+    if (id === currentId) {
+      const remaining = await listTopos();
+      if (remaining.length > 0) {
+        await loadAndDispatch(remaining[0].id);
+      } else {
+        store.put({ id: "topo/new", data: { id: newTopoId() } });
+      }
+    }
     refresh();
   };
 

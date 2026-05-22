@@ -1,20 +1,16 @@
-import { useSetAtom } from "jotai";
 import { useButtonPressed } from "use-control";
-import { cancelDrawingAtom, finishDrawingAtom } from "../../state/actions";
+import { store } from "../../state/store";
 import { inputMap } from "../inputMap";
 import { isTypingInField } from "../useFocusGuard";
 
 export function DrawingShortcuts() {
-  const finish = useSetAtom(finishDrawingAtom);
-  const cancel = useSetAtom(cancelDrawingAtom);
-
   useButtonPressed(inputMap, "finish", () => {
     if (isTypingInField()) return;
-    finish();
+    store.put({ id: "mode/finishDrawing" });
   });
   useButtonPressed(inputMap, "cancel", () => {
     if (isTypingInField()) return;
-    cancel();
+    store.put({ id: "mode/cancelDrawing" });
   });
 
   return null;

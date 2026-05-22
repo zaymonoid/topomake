@@ -1,4 +1,4 @@
-import type { History } from "../state/atoms";
+import type { HistoryState as History } from "../state/reducer";
 import type { Display, Image, Metadata, Snapshot } from "../state/types";
 
 const DB_NAME = "topomake";

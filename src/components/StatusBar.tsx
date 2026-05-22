@@ -1,7 +1,14 @@
-import { useAtomValue } from "jotai";
-import { currentToolAtom, editorModeAtom } from "../state/atoms";
-import { currentRouteAtom, modeHintAtom, routeNumbersAtom } from "../state/computed";
-import { type SaveStatus, saveStatusAtom } from "../state/persistence";
+import { useSelector } from "@zaymonoid/katha/react";
+import type { SaveStatus } from "../state/reducer";
+import {
+  selectCurrentRoute,
+  selectCurrentTool,
+  selectMode,
+  selectModeHint,
+  selectRouteNumbers,
+  selectSaveStatus,
+} from "../state/selectors";
+import { store } from "../state/store";
 
 const TOOL_LABEL: Record<string, string> = {
   select: "Select",
@@ -17,12 +24,12 @@ const SAVE_LABEL: Record<SaveStatus, string> = {
 };
 
 export function StatusBar() {
-  const tool = useAtomValue(currentToolAtom);
-  const route = useAtomValue(currentRouteAtom);
-  const routeNumbers = useAtomValue(routeNumbersAtom);
-  const hint = useAtomValue(modeHintAtom);
-  const mode = useAtomValue(editorModeAtom);
-  const saveStatus = useAtomValue(saveStatusAtom);
+  const tool = useSelector(store, selectCurrentTool);
+  const route = useSelector(store, selectCurrentRoute);
+  const routeNumbers = useSelector(store, selectRouteNumbers);
+  const hint = useSelector(store, selectModeHint);
+  const mode = useSelector(store, selectMode);
+  const saveStatus = useSelector(store, selectSaveStatus);
 
   const hints = hint?.hints ?? [];
   const isDrawing = mode.kind === "drawing";

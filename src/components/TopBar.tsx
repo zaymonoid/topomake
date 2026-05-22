@@ -1,33 +1,36 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSelector } from "@zaymonoid/katha/react";
 import { useRef } from "react";
 import { SHORTCUTS } from "../input/shortcuts";
-import { setImageAtom, setTopoNameAtom } from "../state/actions";
-import { redoAtom, topoAtom, undoAtom } from "../state/atoms";
-import { canRedoAtom, canUndoAtom } from "../state/computed";
+import {
+  selectCanRedo,
+  selectCanUndo,
+  selectIdentity,
+  selectImage,
+  selectRouteCount,
+} from "../state/selectors";
+import { store } from "../state/store";
 import { readImageFile } from "../util/image";
 import { TopoPicker } from "./TopoPicker";
 
 export function TopBar() {
-  const topo = useAtomValue(topoAtom);
-  const canUndo = useAtomValue(canUndoAtom);
-  const canRedo = useAtomValue(canRedoAtom);
-  const undo = useSetAtom(undoAtom);
-  const redo = useSetAtom(redoAtom);
-  const setImage = useSetAtom(setImageAtom);
-  const setName = useSetAtom(setTopoNameAtom);
+  const { name } = useSelector(store, selectIdentity);
+  const image = useSelector(store, selectImage);
+  const routeCount = useSelector(store, selectRouteCount);
+  const canUndo = useSelector(store, selectCanUndo);
+  const canRedo = useSelector(store, selectCanRedo);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (topo.snapshot.routes.length > 0) {
+    if (routeCount > 0) {
       const ok = confirm("Replacing the image will keep existing routes. Continue?");
       if (!ok) return;
     }
     try {
       const data = await readImageFile(file);
-      setImage(data);
+      store.put({ id: "topo/setImage", data });
     } catch (err) {
       alert((err as Error).message);
     }
@@ -63,8 +66,8 @@ export function TopBar() {
         <span className="label">CRAG</span>
         <input
           className="crag-input"
-          value={topo.name}
-          onChange={(e) => setName(e.target.value)}
+          value={name}
+          onChange={(e) => store.put({ id: "topo/setName", data: e.target.value })}
           placeholder="Untitled Topo"
         />
       </div>
@@ -75,7 +78,7 @@ export function TopBar() {
         type="button"
         className="icon-btn"
         onClick={() => fileRef.current?.click()}
-        aria-label={topo.image ? "Replace image" : "Upload image"}
+        aria-label={image ? "Replace image" : "Upload image"}
       >
         <svg
           viewBox="0 0 16 16"
@@ -89,7 +92,7 @@ export function TopBar() {
           <circle cx="6" cy="7" r="1.4" />
           <path d="M2 11 L6 7.5 L10 10 L14 6" />
         </svg>
-        <span className="tip">{topo.image ? "Replace image" : "Upload image"}</span>
+        <span className="tip">{image ? "Replace image" : "Upload image"}</span>
       </button>
 
       <input
@@ -106,7 +109,7 @@ export function TopBar() {
         <button
           type="button"
           className={`history-btn ${canUndo ? "" : "disabled"}`}
-          onClick={() => canUndo && undo()}
+          onClick={() => canUndo && store.put({ id: "history/undo" })}
           aria-label="Undo"
         >
           <svg
@@ -129,7 +132,7 @@ export function TopBar() {
         <button
           type="button"
           className={`history-btn ${canRedo ? "" : "disabled"}`}
-          onClick={() => canRedo && redo()}
+          onClick={() => canRedo && store.put({ id: "history/redo" })}
           aria-label="Redo"
         >
           <svg

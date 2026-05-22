@@ -1,39 +1,28 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSelector } from "@zaymonoid/katha/react";
 import { useRef } from "react";
 import { SHORTCUTS } from "../input/shortcuts";
 import {
-  createRouteAtom,
-  deleteAnnotationAtom,
-  deleteRouteAtom,
-  selectRouteAtom,
-  setAnnotationColorAtom,
-  setLineWidthAtom,
-  setNumberingOrderAtom,
-  setNumberingStartOffsetAtom,
-  setNumberSizeAtom,
-  setRouteColorAtom,
-  setRouteFinishStyleAtom,
-  setRouteNameAtom,
-} from "../state/actions";
-import { currentToolAtom, displayAtom, selectedAnnotationIdAtom } from "../state/atoms";
-import {
-  annotationCountAtom,
-  annotationsAtom,
-  canAddRouteAtom,
-  currentRouteAtom,
-  drawingRouteIdAtom,
-  routeCountAtom,
-  routeNumberRangeAtom,
-  routeNumbersAtom,
-  routesAtom,
-  selectedRouteIdAtom,
-} from "../state/computed";
+  selectAnnotationCount,
+  selectAnnotations,
+  selectCanAddRoute,
+  selectCurrentRoute,
+  selectDisplay,
+  selectDrawingRouteId,
+  selectRouteCount,
+  selectRouteNumberRange,
+  selectRouteNumbers,
+  selectRoutes,
+  selectSelectedAnnotationId,
+  selectSelectedRouteId,
+} from "../state/selectors";
+import { store } from "../state/store";
 import {
   type NumberingOrder,
   PALETTE,
   type RouteColor,
   type RouteFinishStyle,
 } from "../state/types";
+import { uid } from "../util/id";
 
 const COLORS: RouteColor[] = ["white", "blue", "red", "yellow"];
 
@@ -54,33 +43,18 @@ function TrashIcon() {
 }
 
 export function SidePanel() {
-  const display = useAtomValue(displayAtom);
-  const routes = useAtomValue(routesAtom);
-  const routeNumbers = useAtomValue(routeNumbersAtom);
-  const routeCount = useAtomValue(routeCountAtom);
-  const range = useAtomValue(routeNumberRangeAtom);
-  const selectedId = useAtomValue(selectedRouteIdAtom);
-  const drawingId = useAtomValue(drawingRouteIdAtom);
-  const selected = useAtomValue(currentRouteAtom);
-  const canAdd = useAtomValue(canAddRouteAtom);
-  const annotations = useAtomValue(annotationsAtom);
-  const annCount = useAtomValue(annotationCountAtom);
-  const selectedAnnId = useAtomValue(selectedAnnotationIdAtom);
-
-  const setNumberingStartOffset = useSetAtom(setNumberingStartOffsetAtom);
-  const setNumberingOrder = useSetAtom(setNumberingOrderAtom);
-  const setLineWidth = useSetAtom(setLineWidthAtom);
-  const setNumberSize = useSetAtom(setNumberSizeAtom);
-  const createRoute = useSetAtom(createRouteAtom);
-  const deleteRoute = useSetAtom(deleteRouteAtom);
-  const selectRoute = useSetAtom(selectRouteAtom);
-  const setName = useSetAtom(setRouteNameAtom);
-  const setColor = useSetAtom(setRouteColorAtom);
-  const setFinishStyle = useSetAtom(setRouteFinishStyleAtom);
-  const setTool = useSetAtom(currentToolAtom);
-  const setSelectedAnnId = useSetAtom(selectedAnnotationIdAtom);
-  const deleteAnnotation = useSetAtom(deleteAnnotationAtom);
-  const setAnnotationColor = useSetAtom(setAnnotationColorAtom);
+  const display = useSelector(store, selectDisplay);
+  const routes = useSelector(store, selectRoutes);
+  const routeNumbers = useSelector(store, selectRouteNumbers);
+  const routeCount = useSelector(store, selectRouteCount);
+  const range = useSelector(store, selectRouteNumberRange);
+  const selectedId = useSelector(store, selectSelectedRouteId);
+  const drawingId = useSelector(store, selectDrawingRouteId);
+  const selected = useSelector(store, selectCurrentRoute);
+  const canAdd = useSelector(store, selectCanAddRoute);
+  const annotations = useSelector(store, selectAnnotations);
+  const annCount = useSelector(store, selectAnnotationCount);
+  const selectedAnnId = useSelector(store, selectSelectedAnnotationId);
   const selectedAnnotation = annotations.find((a) => a.id === selectedAnnId) ?? null;
 
   const nameRef = useRef<HTMLInputElement>(null);
@@ -91,6 +65,15 @@ export function SidePanel() {
       : range.min === range.max
         ? `label: ${range.min}`
         : `labels: ${range.min} → ${range.max}`;
+
+  const setNumberingStartOffset = (n: number) =>
+    store.put({ id: "display/setNumberingOffset", data: n });
+  const newRoute = () => {
+    if (!canAdd) return;
+    const id = uid();
+    store.put({ id: "routes/create", data: { id } });
+    store.put({ id: "mode/enterDrawing", data: { routeId: id } });
+  };
 
   return (
     <aside className="panel">
@@ -136,7 +119,12 @@ export function SidePanel() {
             <select
               className="ts-select"
               value={display.numbering.order}
-              onChange={(e) => setNumberingOrder(e.target.value as NumberingOrder)}
+              onChange={(e) =>
+                store.put({
+                  id: "display/setNumberingOrder",
+                  data: e.target.value as NumberingOrder,
+                })
+              }
             >
               <option value="created">Order created</option>
               <option value="ltr">Left → Right</option>
@@ -175,7 +163,9 @@ export function SidePanel() {
             max={2.5}
             step={0.05}
             value={display.lineWidth}
-            onChange={(e) => setLineWidth(parseFloat(e.target.value))}
+            onChange={(e) =>
+              store.put({ id: "display/setLineWidth", data: parseFloat(e.target.value) })
+            }
           />
         </div>
         <div className="slider-row">
@@ -190,7 +180,9 @@ export function SidePanel() {
             max={2.5}
             step={0.05}
             value={display.numberSize}
-            onChange={(e) => setNumberSize(parseFloat(e.target.value))}
+            onChange={(e) =>
+              store.put({ id: "display/setNumberSize", data: parseFloat(e.target.value) })
+            }
           />
         </div>
       </div>
@@ -206,7 +198,7 @@ export function SidePanel() {
                 type="button"
                 className="hdr-add"
                 disabled={!canAdd}
-                onClick={() => createRoute()}
+                onClick={newRoute}
                 aria-label="New route"
               >
                 <svg
@@ -236,11 +228,11 @@ export function SidePanel() {
               <div
                 key={r.id}
                 className={`route-row ${r.id === selectedId ? "selected" : ""} ${variation ? "variation" : ""}`}
-                onClick={() => selectRoute(r.id)}
+                onClick={() => store.put({ id: "mode/selectRoute", data: { routeId: r.id } })}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    selectRoute(r.id);
+                    store.put({ id: "mode/selectRoute", data: { routeId: r.id } });
                   }
                 }}
                 role="button"
@@ -266,7 +258,7 @@ export function SidePanel() {
                   className={`row-action ${r.id === selectedId ? "always" : ""}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    deleteRoute(r.id);
+                    store.put({ id: "routes/delete", data: { id: r.id } });
                   }}
                   title="Delete route"
                   aria-label="Delete route"
@@ -288,7 +280,7 @@ export function SidePanel() {
             <button
               type="button"
               className="hdr-add"
-              onClick={() => setTool("annotate")}
+              onClick={() => store.put({ id: "tool/set", data: "annotate" })}
               aria-label="Annotate"
             >
               <svg
@@ -318,11 +310,11 @@ export function SidePanel() {
               <div
                 key={a.id}
                 className={`ann-item ${a.id === selectedAnnId ? "selected" : ""}`}
-                onClick={() => setSelectedAnnId(a.id)}
+                onClick={() => store.put({ id: "mode/selectAnnotation", data: { id: a.id } })}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setSelectedAnnId(a.id);
+                    store.put({ id: "mode/selectAnnotation", data: { id: a.id } });
                   }
                 }}
                 role="button"
@@ -339,7 +331,7 @@ export function SidePanel() {
                   aria-label="Delete annotation"
                   onClick={(e) => {
                     e.stopPropagation();
-                    deleteAnnotation(a.id);
+                    store.put({ id: "annotations/delete", data: { id: a.id } });
                   }}
                 >
                   <TrashIcon />
@@ -365,7 +357,9 @@ export function SidePanel() {
               style={{ width: 24, height: 24, marginLeft: "auto" }}
               title="Delete annotation"
               aria-label="Delete annotation"
-              onClick={() => deleteAnnotation(selectedAnnotation.id)}
+              onClick={() =>
+                store.put({ id: "annotations/delete", data: { id: selectedAnnotation.id } })
+              }
             >
               <TrashIcon />
             </button>
@@ -380,7 +374,12 @@ export function SidePanel() {
                     key={c}
                     className={`color-swatch ${(selectedAnnotation.color ?? "white") === c ? "selected" : ""}`}
                     style={{ background: PALETTE[c] }}
-                    onClick={() => setAnnotationColor({ id: selectedAnnotation.id, color: c })}
+                    onClick={() =>
+                      store.put({
+                        id: "annotations/setColor",
+                        data: { id: selectedAnnotation.id, color: c },
+                      })
+                    }
                     aria-label={c}
                   />
                 ))}
@@ -405,7 +404,12 @@ export function SidePanel() {
               ref={nameRef}
               className="name-edit"
               value={selected.name}
-              onChange={(e) => setName({ id: selected.id, name: e.target.value })}
+              onChange={(e) =>
+                store.put({
+                  id: "routes/setName",
+                  data: { id: selected.id, name: e.target.value },
+                })
+              }
               placeholder={
                 selected.branchFrom !== undefined ? "unnamed variation" : "unnamed route"
               }
@@ -435,7 +439,7 @@ export function SidePanel() {
               style={{ width: 24, height: 24 }}
               title="Delete route"
               aria-label="Delete route"
-              onClick={() => deleteRoute(selected.id)}
+              onClick={() => store.put({ id: "routes/delete", data: { id: selected.id } })}
             >
               <svg
                 viewBox="0 0 16 16"
@@ -461,7 +465,12 @@ export function SidePanel() {
                     key={c}
                     className={`color-swatch ${selected.color === c ? "selected" : ""}`}
                     style={{ background: PALETTE[c] }}
-                    onClick={() => setColor({ id: selected.id, color: c })}
+                    onClick={() =>
+                      store.put({
+                        id: "routes/setColor",
+                        data: { id: selected.id, color: c },
+                      })
+                    }
                     aria-label={c}
                   />
                 ))}
@@ -476,9 +485,12 @@ export function SidePanel() {
                 className="ts-select"
                 value={selected.finishStyle}
                 onChange={(e) =>
-                  setFinishStyle({
-                    id: selected.id,
-                    finishStyle: e.target.value as RouteFinishStyle,
+                  store.put({
+                    id: "routes/setFinishStyle",
+                    data: {
+                      id: selected.id,
+                      finishStyle: e.target.value as RouteFinishStyle,
+                    },
                   })
                 }
               >

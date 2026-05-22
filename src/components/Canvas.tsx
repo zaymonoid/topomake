@@ -1,14 +1,16 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSelector } from "@zaymonoid/katha/react";
 import { useEffect, useRef, useState } from "react";
-import { appendPointAtom, createAnnotationAtom, setImageAtom } from "../state/actions";
-import { currentToolAtom, hoveredHandleAtom, topoAtom } from "../state/atoms";
 import {
-  annotationsAtom,
-  canvasCursorAtom,
-  drawingRouteIdAtom,
-  routesAtom,
-} from "../state/computed";
+  selectAnnotations,
+  selectCanvasCursor,
+  selectCurrentTool,
+  selectDrawingRouteId,
+  selectImage,
+  selectRoutes,
+} from "../state/selectors";
+import { store } from "../state/store";
 import type { Point } from "../state/types";
+import { uid } from "../util/id";
 import { readImageFile } from "../util/image";
 import { AnnotationPin } from "./AnnotationPin";
 import { RouteShape } from "./RouteShape";
@@ -29,18 +31,12 @@ function clientToNormalized(e: React.MouseEvent, svg: SVGSVGElement, w: number, 
 }
 
 export function Canvas() {
-  const topo = useAtomValue(topoAtom);
-  const image = topo.image;
-  const routes = useAtomValue(routesAtom);
-  const annotations = useAtomValue(annotationsAtom);
-  const drawingId = useAtomValue(drawingRouteIdAtom);
-  const cursor = useAtomValue(canvasCursorAtom);
-  const tool = useAtomValue(currentToolAtom);
-  const appendPoint = useSetAtom(appendPointAtom);
-  const createAnnotation = useSetAtom(createAnnotationAtom);
-  const setImage = useSetAtom(setImageAtom);
-  const setTool = useSetAtom(currentToolAtom);
-  const setHoveredHandle = useSetAtom(hoveredHandleAtom);
+  const image = useSelector(store, selectImage);
+  const routes = useSelector(store, selectRoutes);
+  const annotations = useSelector(store, selectAnnotations);
+  const drawingId = useSelector(store, selectDrawingRouteId);
+  const cursor = useSelector(store, selectCanvasCursor);
+  const tool = useSelector(store, selectCurrentTool);
   const svgRef = useRef<SVGSVGElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +57,7 @@ export function Canvas() {
     }
     try {
       const data = await readImageFile(file);
-      setImage(data);
+      store.put({ id: "topo/setImage", data });
     } catch (err) {
       alert((err as Error).message);
     }
@@ -94,8 +90,10 @@ export function Canvas() {
   // Clear the branch-tool tooltip target whenever the user leaves the branch tool
   // or enters drawing mode, so a stale tooltip never lingers.
   useEffect(() => {
-    if (tool !== "branch" || drawingId !== null) setHoveredHandle(null);
-  }, [tool, drawingId, setHoveredHandle]);
+    if (tool !== "branch" || drawingId !== null) {
+      store.put({ id: "hover/clear" });
+    }
+  }, [tool, drawingId]);
 
   useEffect(() => {
     const el = innerRef.current;
@@ -165,12 +163,14 @@ export function Canvas() {
     if (!svgRef.current) return;
     const np = clientToNormalized(e, svgRef.current, image.width, image.height);
     if (drawingId) {
-      appendPoint(np);
+      store.put({ id: "points/append", data: { routeId: drawingId, point: np } });
       return;
     }
     if (tool === "annotate") {
-      createAnnotation({ x: np.x, y: np.y });
-      setTool("select");
+      const id = uid();
+      store.put({ id: "annotations/create", data: { id, x: np.x, y: np.y } });
+      store.put({ id: "mode/selectAnnotation", data: { id } });
+      store.put({ id: "tool/set", data: "select" });
     }
   };
 

@@ -1,12 +1,7 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSelector } from "@zaymonoid/katha/react";
 import { useEffect, useRef, useState } from "react";
-import {
-  beginAnnotationDragAtom,
-  deleteAnnotationAtom,
-  setAnnotationPosAtom,
-  setAnnotationTextAtom,
-} from "../state/actions";
-import { selectedAnnotationIdAtom } from "../state/atoms";
+import { selectSelectedAnnotationId } from "../state/selectors";
+import { store } from "../state/store";
 import { type Annotation, PALETTE } from "../state/types";
 
 type Props = {
@@ -15,12 +10,7 @@ type Props = {
 };
 
 export function AnnotationPin({ annotation, stageRef }: Props) {
-  const selectedId = useAtomValue(selectedAnnotationIdAtom);
-  const setSelectedId = useSetAtom(selectedAnnotationIdAtom);
-  const setPos = useSetAtom(setAnnotationPosAtom);
-  const setText = useSetAtom(setAnnotationTextAtom);
-  const beginDrag = useSetAtom(beginAnnotationDragAtom);
-  const deleteAnnotation = useSetAtom(deleteAnnotationAtom);
+  const selectedId = useSelector(store, selectSelectedAnnotationId);
 
   const isSelected = selectedId === annotation.id;
   const isNew = isSelected && annotation.text === "";
@@ -45,8 +35,9 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
     (e.target as Element).setPointerCapture(e.pointerId);
     dragPointerIdRef.current = e.pointerId;
     draggedRef.current = false;
-    setSelectedId(annotation.id);
-    beginDrag();
+    store.put({ id: "mode/selectAnnotation", data: { id: annotation.id } });
+    // Capture pre-drag snapshot so undo reverts the drag as one step.
+    store.put({ id: "history/push", data: store.getState().topo.snapshot });
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -56,7 +47,7 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
     const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
     if (x !== annotation.x || y !== annotation.y) draggedRef.current = true;
-    setPos({ id: annotation.id, x, y });
+    store.put({ id: "annotations/setPos", data: { id: annotation.id, x, y } });
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -68,7 +59,9 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
 
   const commitText = () => {
     setEditing(false);
-    if (annotation.text === "") deleteAnnotation(annotation.id);
+    if (annotation.text === "") {
+      store.put({ id: "annotations/delete", data: { id: annotation.id } });
+    }
   };
 
   const onInputKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -77,8 +70,11 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
       (e.target as HTMLInputElement).blur();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      if (annotation.text === "") deleteAnnotation(annotation.id);
-      else setEditing(false);
+      if (annotation.text === "") {
+        store.put({ id: "annotations/delete", data: { id: annotation.id } });
+      } else {
+        setEditing(false);
+      }
     }
   };
 
@@ -104,7 +100,12 @@ export function AnnotationPin({ annotation, stageRef }: Props) {
           className="ann-input"
           value={annotation.text}
           placeholder="annotation…"
-          onChange={(e) => setText({ id: annotation.id, text: e.target.value })}
+          onChange={(e) =>
+            store.put({
+              id: "annotations/setText",
+              data: { id: annotation.id, text: e.target.value },
+            })
+          }
           onBlur={commitText}
           onKeyDown={onInputKey}
         />

@@ -1,4 +1,4 @@
-import { deriveRouteNumbers, effectivePoints } from "../state/computed";
+import { deriveRouteNumbers, effectivePoints } from "../state/derive";
 import { PALETTE, type Topo } from "../state/types";
 import { catmullRomPath } from "./spline";
 
