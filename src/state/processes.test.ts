@@ -18,15 +18,10 @@ vi.mock("../util/storage", () => ({
 }));
 
 import * as storage from "../util/storage";
-import {
-  bootstrap,
-  dragSession,
-  extendSession,
-  historyTracker,
-  makeAutosave,
-  modeTransitions,
-} from "./processes";
-import { initialState, rootReducer, type State } from "./reducer";
+import { dragSession, extendSession, modeTransitions } from "./editor";
+import { historyTracker } from "./history";
+import { bootstrap, makeAutosave } from "./persistence";
+import { initialState, rootReducer, type State } from "./root";
 
 const mocked = vi.mocked(storage);
 
@@ -172,6 +167,23 @@ describe("autosave", () => {
       });
       yield* Effect.sleep(Duration.millis(20));
       yield* store.put({ id: "routes/create", data: { id: "r1" } });
+      yield* Effect.sleep(Duration.millis(60));
+      expect(mocked.saveTopo).not.toHaveBeenCalled();
+    }),
+  );
+
+  it.scopedLive("actions that don't change the persistable slice do not trigger a save", () =>
+    Effect.gen(function* () {
+      const store = yield* makeStore({
+        initialState: hydratedInitial,
+        reduce: rootReducer,
+        process: makeAutosave(FAST),
+      });
+      yield* Effect.sleep(Duration.millis(20));
+      // None of these touch topo/history — autosave should stay quiet.
+      yield* store.put({ id: "tool/set", data: "draw" });
+      yield* store.put({ id: "hover/set", data: { routeId: "r1", index: 0 } });
+      yield* store.put({ id: "mode/selectAnnotation", data: { id: "a1" } });
       yield* Effect.sleep(Duration.millis(60));
       expect(mocked.saveTopo).not.toHaveBeenCalled();
     }),

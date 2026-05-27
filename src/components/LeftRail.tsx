@@ -1,5 +1,5 @@
 import { useSelector } from "@zaymonoid/katha/react";
-import type { Tool } from "../state/actions";
+import type { Tool } from "../state/editor";
 import {
   selectCanAddRoute,
   selectCurrentTool,

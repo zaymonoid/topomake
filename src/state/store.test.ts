@@ -22,8 +22,7 @@ vi.mock("../util/storage", () => ({
 }));
 
 import * as storage from "../util/storage";
-import { rootProcess } from "./processes";
-import { initialState, rootReducer, type State } from "./reducer";
+import { initialState, rootProcess, rootReducer, type State } from "./root";
 import { emptyTopo } from "./types";
 
 const mocked = vi.mocked(storage);

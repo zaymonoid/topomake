@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { initialState, type State } from "./reducer";
+import { initialState, type State } from "./root";
 import {
   selectAnnotationCount,
   selectAnnotations,
@@ -72,7 +72,7 @@ describe("materialized selectRoutes (drag overlay)", () => {
     expect(selectRoutes(s)).toEqual(routes);
   });
 
-  it("applies dragLivePosition overlay to the targeted point", () => {
+  it("applies live drag overlay (from mode.dragging) to the targeted point", () => {
     const routes = [
       route("r1", {
         points: [
@@ -85,23 +85,35 @@ describe("materialized selectRoutes (drag overlay)", () => {
     const s = seedWith((x) => ({
       ...x,
       topo: { ...x.topo, snapshot: { ...x.topo.snapshot, routes } },
-      drag: {
-        dragLivePosition: { routeId: "r1", pointIndex: 1, point: { x: 5, y: 5 } },
+      editor: {
+        ...x.editor,
+        mode: {
+          kind: "dragging",
+          routeId: "r1",
+          pointIndex: 1,
+          livePosition: { x: 5, y: 5 },
+        },
       },
     }));
     const materialized = selectRoutes(s);
     expect(materialized[0].points[1]).toEqual({ x: 5, y: 5 });
-    expect(materialized[0].points[0]).toEqual({ x: 0, y: 0 }); // untouched
-    expect(materialized[1]).toBe(routes[1]); // unrelated route unchanged
+    expect(materialized[0].points[0]).toEqual({ x: 0, y: 0 });
+    expect(materialized[1]).toBe(routes[1]);
   });
 
-  it("ignores dragLivePosition targeting a non-existent route", () => {
+  it("ignores drag overlay targeting a non-existent route", () => {
     const routes = [route("r1", { points: [{ x: 0, y: 0 }] })];
     const s = seedWith((x) => ({
       ...x,
       topo: { ...x.topo, snapshot: { ...x.topo.snapshot, routes } },
-      drag: {
-        dragLivePosition: { routeId: "ghost", pointIndex: 0, point: { x: 9, y: 9 } },
+      editor: {
+        ...x.editor,
+        mode: {
+          kind: "dragging",
+          routeId: "ghost",
+          pointIndex: 0,
+          livePosition: { x: 9, y: 9 },
+        },
       },
     }));
     expect(selectRoutes(s)).toEqual(routes);
@@ -112,8 +124,14 @@ describe("materialized selectRoutes (drag overlay)", () => {
     const s = seedWith((x) => ({
       ...x,
       topo: { ...x.topo, snapshot: { ...x.topo.snapshot, routes: [r1] } },
-      drag: {
-        dragLivePosition: { routeId: "r1", pointIndex: 0, point: { x: 0.5, y: 0.5 } },
+      editor: {
+        ...x.editor,
+        mode: {
+          kind: "dragging",
+          routeId: "r1",
+          pointIndex: 0,
+          livePosition: { x: 0.5, y: 0.5 },
+        },
       },
     }));
     expect(selectRoute(s, "missing")).toBe(null);
@@ -219,9 +237,11 @@ describe("mode-derived selectors", () => {
     expect(selectSelectedRouteId(inMode({ kind: "idle" }))).toBe(null);
     expect(selectSelectedRouteId(inMode({ kind: "selected", routeId: "r1" }))).toBe("r1");
     expect(selectSelectedRouteId(inMode({ kind: "drawing", routeId: "r2" }))).toBe("r2");
-    expect(selectSelectedRouteId(inMode({ kind: "dragging", routeId: "r3", pointIndex: 0 }))).toBe(
-      "r3",
-    );
+    expect(
+      selectSelectedRouteId(
+        inMode({ kind: "dragging", routeId: "r3", pointIndex: 0, livePosition: null }),
+      ),
+    ).toBe("r3");
   });
 
   it("selectDrawingRouteId is set only in drawing mode", () => {
@@ -230,7 +250,7 @@ describe("mode-derived selectors", () => {
   });
 
   it("selectIsDragging + selectDraggingPointIndex", () => {
-    const drag = inMode({ kind: "dragging", routeId: "r", pointIndex: 4 });
+    const drag = inMode({ kind: "dragging", routeId: "r", pointIndex: 4, livePosition: null });
     expect(selectIsDragging(drag)).toBe(true);
     expect(selectDraggingPointIndex(drag)).toBe(4);
     expect(selectIsDragging(inMode({ kind: "idle" }))).toBe(false);
@@ -238,9 +258,11 @@ describe("mode-derived selectors", () => {
 
   it("selectCanvasCursor reflects mode", () => {
     expect(selectCanvasCursor(inMode({ kind: "drawing", routeId: "r" }))).toBe("crosshair");
-    expect(selectCanvasCursor(inMode({ kind: "dragging", routeId: "r", pointIndex: 0 }))).toBe(
-      "grabbing",
-    );
+    expect(
+      selectCanvasCursor(
+        inMode({ kind: "dragging", routeId: "r", pointIndex: 0, livePosition: null }),
+      ),
+    ).toBe("grabbing");
     expect(selectCanvasCursor(inMode({ kind: "idle" }))).toBe("default");
   });
 
@@ -306,11 +328,16 @@ describe("misc derived", () => {
     const r1 = route("r1", { points: [{ x: 0, y: 0 }] });
     const s = seedWith((x) => ({
       ...x,
-      editor: { ...x.editor, mode: { kind: "selected", routeId: "r1" } },
-      topo: { ...x.topo, snapshot: { ...x.topo.snapshot, routes: [r1] } },
-      drag: {
-        dragLivePosition: { routeId: "r1", pointIndex: 0, point: { x: 0.7, y: 0.7 } },
+      editor: {
+        ...x.editor,
+        mode: {
+          kind: "dragging",
+          routeId: "r1",
+          pointIndex: 0,
+          livePosition: { x: 0.7, y: 0.7 },
+        },
       },
+      topo: { ...x.topo, snapshot: { ...x.topo.snapshot, routes: [r1] } },
     }));
     expect(selectCurrentRoute(s)?.points[0]).toEqual({ x: 0.7, y: 0.7 });
   });

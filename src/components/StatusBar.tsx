@@ -1,5 +1,5 @@
 import { useSelector } from "@zaymonoid/katha/react";
-import type { SaveStatus } from "../state/reducer";
+import type { SaveStatus } from "../state/persistence";
 import {
   selectCurrentRoute,
   selectCurrentTool,

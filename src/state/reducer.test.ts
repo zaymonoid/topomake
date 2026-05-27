@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Action } from "./actions";
-import { initialState, rootReducer, type State } from "./reducer";
+import { type Action, initialState, rootReducer, type State } from "./root";
 import { type Annotation, emptyTopo, type Route, type Snapshot, type Topo } from "./types";
 
 // --- fixtures ---
@@ -318,16 +317,18 @@ describe("history slice", () => {
 
 // --- root reducer: cross-slice undo/redo atomicity ---
 
-describe("root reducer undo / redo", () => {
-  // Distinct empty snapshots — the assertions check identity (.toBe), so
-  // each call returns a fresh instance with no structural difference.
+describe("snapshot/restore", () => {
+  // The orchestrator process computes the restore payload from current state
+  // (see processes.test.ts for end-to-end undo/redo coverage). These tests
+  // verify that history + topo reducers both react to snapshot/restore in a
+  // single tick.
   const v = (_i: number, suffix: Partial<Snapshot> = {}): Snapshot => ({
     routes: [],
     annotations: [],
     ...suffix,
   });
 
-  it("history/undo pops past, pushes current to future, sets content to popped", () => {
+  it("sets snapshot and past/future on both slices (undo-shaped payload)", () => {
     const v1 = v(1);
     const v2 = v(2);
     const v3 = v(3);
@@ -336,24 +337,16 @@ describe("root reducer undo / redo", () => {
       topo: { ...emptyTopo("t"), snapshot: v3 },
       history: { past: [v1, v2], future: [] },
     };
-    const s = dispatch(s0, { id: "history/undo" });
+    const s = dispatch(s0, {
+      id: "snapshot/restore",
+      data: { snapshot: v2, past: [v1], future: [v3] },
+    });
     expect(s.topo.snapshot).toBe(v2);
     expect(s.history.past).toEqual([v1]);
     expect(s.history.future).toEqual([v3]);
   });
 
-  it("history/undo with empty past is a no-op", () => {
-    const v0 = v(0);
-    const s0: State = {
-      ...initialState,
-      topo: { ...emptyTopo("t"), snapshot: v0 },
-      history: { past: [], future: [] },
-    };
-    const s = dispatch(s0, { id: "history/undo" });
-    expect(s).toBe(s0);
-  });
-
-  it("history/redo pops future, pushes current to past, sets content to popped", () => {
+  it("sets snapshot and past/future on both slices (redo-shaped payload)", () => {
     const v1 = v(1);
     const v2 = v(2);
     const v3 = v(3);
@@ -362,35 +355,33 @@ describe("root reducer undo / redo", () => {
       topo: { ...emptyTopo("t"), snapshot: v1 },
       history: { past: [], future: [v2, v3] },
     };
-    const s = dispatch(s0, { id: "history/redo" });
+    const s = dispatch(s0, {
+      id: "snapshot/restore",
+      data: { snapshot: v2, past: [v1], future: [v3] },
+    });
     expect(s.topo.snapshot).toBe(v2);
     expect(s.history.past).toEqual([v1]);
     expect(s.history.future).toEqual([v3]);
   });
 
-  it("history/redo with empty future is a no-op", () => {
+  it("bare history/undo is a no-op at the reducer level (process handles it)", () => {
     const s0: State = {
       ...initialState,
-      topo: { ...emptyTopo("t"), snapshot: v(5) },
-      history: { past: [], future: [] },
+      topo: { ...emptyTopo("t"), snapshot: v(1) },
+      history: { past: [v(0)], future: [] },
     };
-    const s = dispatch(s0, { id: "history/redo" });
+    const s = dispatch(s0, { id: "history/undo" });
     expect(s).toBe(s0);
   });
 
-  it("undo → redo is a round trip", () => {
-    const v1 = v(1);
-    const v2 = v(2);
+  it("bare history/redo is a no-op at the reducer level (process handles it)", () => {
     const s0: State = {
       ...initialState,
-      topo: { ...emptyTopo("t"), snapshot: v2 },
-      history: { past: [v1], future: [] },
+      topo: { ...emptyTopo("t"), snapshot: v(0) },
+      history: { past: [], future: [v(1)] },
     };
-    const undone = dispatch(s0, { id: "history/undo" });
-    const redone = dispatch(undone, { id: "history/redo" });
-    expect(redone.topo.snapshot).toBe(v2);
-    expect(redone.history.past).toEqual([v1]);
-    expect(redone.history.future).toEqual([]);
+    const s = dispatch(s0, { id: "history/redo" });
+    expect(s).toBe(s0);
   });
 });
 
@@ -452,46 +443,65 @@ describe("editor slice", () => {
   });
 });
 
-// --- drag slice ---
+// --- drag (lives inside editor.mode.dragging now) ---
 
-describe("drag slice", () => {
-  it("drag/begin transitions mode → dragging and clears live position", () => {
-    const s0: State = {
-      ...initialState,
-      drag: { dragLivePosition: { routeId: "r1", pointIndex: 0, point: { x: 1, y: 1 } } },
-    };
-    const s = dispatch(s0, {
+describe("drag actions on editor.mode", () => {
+  it("drag/begin transitions mode → dragging with null livePosition", () => {
+    const s = dispatch(initialState, {
       id: "drag/begin",
       data: { routeId: "r2", pointIndex: 3 },
     });
-    expect(s.editor.mode).toEqual({ kind: "dragging", routeId: "r2", pointIndex: 3 });
-    expect(s.drag.dragLivePosition).toBe(null);
+    expect(s.editor.mode).toEqual({
+      kind: "dragging",
+      routeId: "r2",
+      pointIndex: 3,
+      livePosition: null,
+    });
   });
 
-  it("drag/setLivePosition writes the overlay", () => {
-    const data = { routeId: "r1", pointIndex: 0, point: { x: 0.5, y: 0.5 } };
-    const s = dispatch(initialState, { id: "drag/setLivePosition", data });
-    expect(s.drag.dragLivePosition).toEqual(data);
-  });
-
-  it("drag/end transitions mode back to selected (overlay cleared by process, not reducer)", () => {
+  it("drag/setLivePosition writes livePosition into mode.dragging", () => {
     const s0: State = {
       ...initialState,
       editor: {
         ...initialState.editor,
-        mode: { kind: "dragging", routeId: "r1", pointIndex: 0 },
+        mode: { kind: "dragging", routeId: "r1", pointIndex: 0, livePosition: null },
       },
-      drag: { dragLivePosition: { routeId: "r1", pointIndex: 0, point: { x: 1, y: 1 } } },
     };
-    const s = dispatch(s0, { id: "drag/end" });
-    expect(s.editor.mode).toEqual({ kind: "selected", routeId: "r1" });
-    // overlay deliberately preserved at the reducer level — the dragSession
-    // process clears it AFTER committing the final point.
-    expect(s.drag.dragLivePosition).toEqual({
+    const s = dispatch(s0, {
+      id: "drag/setLivePosition",
+      data: { routeId: "r1", pointIndex: 0, point: { x: 0.5, y: 0.5 } },
+    });
+    expect(s.editor.mode).toEqual({
+      kind: "dragging",
       routeId: "r1",
       pointIndex: 0,
-      point: { x: 1, y: 1 },
+      livePosition: { x: 0.5, y: 0.5 },
     });
+  });
+
+  it("drag/setLivePosition is a no-op when not in dragging mode", () => {
+    const s = dispatch(initialState, {
+      id: "drag/setLivePosition",
+      data: { routeId: "r1", pointIndex: 0, point: { x: 0.5, y: 0.5 } },
+    });
+    expect(s).toBe(initialState);
+  });
+
+  it("drag/end is intentionally unhandled at the reducer level (process orchestrates)", () => {
+    const s0: State = {
+      ...initialState,
+      editor: {
+        ...initialState.editor,
+        mode: {
+          kind: "dragging",
+          routeId: "r1",
+          pointIndex: 0,
+          livePosition: { x: 1, y: 1 },
+        },
+      },
+    };
+    const s = dispatch(s0, { id: "drag/end" });
+    expect(s).toBe(s0);
   });
 });
 

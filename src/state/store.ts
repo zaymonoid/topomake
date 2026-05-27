@@ -13,9 +13,13 @@
  */
 import { createStoreRef, makeStore } from "@zaymonoid/katha";
 import { Effect, ManagedRuntime } from "effect";
-import type { Action } from "./actions";
-import { rootProcess } from "./processes";
-import { initialState as reducerInitial, rootReducer, type State } from "./reducer";
+import {
+  type Action,
+  initialState as reducerInitial,
+  rootProcess,
+  rootReducer,
+  type State,
+} from "./root";
 import { emptyTopo } from "./types";
 
 // Seed with a fresh empty topo (id will be replaced by bootstrap if it loads

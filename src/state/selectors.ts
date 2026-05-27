@@ -1,6 +1,6 @@
 import { deriveRouteNumbers } from "./derive";
 import type { ShortcutsScope } from "./mode";
-import type { State } from "./reducer";
+import type { State } from "./root";
 import type { Annotation, Route } from "./types";
 
 // ============================================================================
@@ -24,19 +24,28 @@ export const selectHydrated = (s: State) => s.persistence.hydrated;
 // Memoized so the same state ref → same output ref (subscription friendly).
 // ============================================================================
 
+type DragOverlay = { routeId: string; pointIndex: number; point: Route["points"][number] } | null;
+
+const dragOverlay = (s: State): DragOverlay => {
+  const m = s.editor.mode;
+  if (m.kind !== "dragging" || m.livePosition === null) return null;
+  return { routeId: m.routeId, pointIndex: m.pointIndex, point: m.livePosition };
+};
+
 type RoutesCache = {
-  routes: Route[]; // committed routes ref
-  drag: State["drag"]["dragLivePosition"]; // overlay ref
-  result: Route[]; // memoized materialized routes
+  routes: Route[];
+  mode: State["editor"]["mode"];
+  result: Route[];
 };
 let routesCache: RoutesCache | null = null;
 
 export const selectRoutes = (s: State): Route[] => {
   const routes = s.topo.snapshot.routes;
-  const drag = s.drag.dragLivePosition;
-  if (routesCache && routesCache.routes === routes && routesCache.drag === drag) {
+  const mode = s.editor.mode;
+  if (routesCache && routesCache.routes === routes && routesCache.mode === mode) {
     return routesCache.result;
   }
+  const drag = dragOverlay(s);
   let result: Route[];
   if (!drag) {
     result = routes;
@@ -52,7 +61,7 @@ export const selectRoutes = (s: State): Route[] => {
       });
     }
   }
-  routesCache = { routes, drag, result };
+  routesCache = { routes, mode, result };
   return result;
 };
 
